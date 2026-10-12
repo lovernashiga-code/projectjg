@@ -3,6 +3,8 @@
 Experiment code behind the presentation. Pipeline: LFW → MTCNN detection + 5-point alignment →
 partial-face variants → frozen VGG-Face / FaceNet features → Softmax classifier.
 
+Slides: [slides/Partial_Face_Recognition.pdf](slides/Partial_Face_Recognition.pdf)
+
 ## Layout
 
 ```
