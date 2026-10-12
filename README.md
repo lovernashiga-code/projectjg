@@ -27,7 +27,8 @@ python download_data.py                          # LFW + FEI from Kaggle, VGG-Fa
 |---|---|---|
 | LFW | [kaggle.com/datasets/jessicali9530/lfw-dataset](https://www.kaggle.com/datasets/jessicali9530/lfw-dataset) (or scikit-learn's `fetch_lfw_people`) | `data/lfw/` (or `data/lfw_home/lfw/`) |
 | FEI Face Database | [kaggle.com/datasets/whizzkid/fei-face-data](https://www.kaggle.com/datasets/whizzkid/fei-face-data) | `data/fei/` (any depth; original `1-01.jpg … 200-14.jpg` names) |
-| Custom (group members) | `python capture_faces.py --name <Name>` or your own photos | `data/custom/<Name>/*.jpg` |
+| Custom (group members) | `python capture_faces.py --name <Name>` or your own photos | `data/custom/<Name>/<session>/*.jpg` |
+| Strangers (optional) | `python capture_faces.py --name <Name> --stranger`: people outside the group | `data/unknown/` |
 | VGG-Face weights | [rcmalli/keras-vggface v2.0](https://github.com/rcmalli/keras-vggface/releases/tag/v2.0) `rcmalli_vggface_tf_vgg16.h5` | `weights/` |
 
 FaceNet and MTCNN weights ship with facenet-pytorch. If both `data/lfw_home/lfw` and `data/lfw/` exist,
@@ -38,6 +39,15 @@ step 1 uses `data/lfw_home/lfw`, the copy the slide numbers were measured on.
 Every step takes `--dataset lfw` (default), `fei`, `custom`, or a combination such as `lfw+custom`.
 LFW writes to `results/`, the others to `results/<dataset>/`.
 
+**How the test set is chosen.** This is closed-set identification: every person must be in both the training
+and the test set, but no photo may be in both (its occluded copies stay on the same side). LFW and FEI use a
+70/30 split of the images, stratified by person. Webcam frames from one recording are near-duplicates, so a
+custom person recorded in two or more sessions keeps one whole session as test data instead.
+
+**Strangers (open-set test).** Step 1 also builds `unknown.npz`: up to 500 LFW people who are *not* classes of
+the dataset (one photo each) plus every photo in `data/unknown/`. They are never trained on; step 3 counts how
+many of them still get a name instead of "Unknown" at each τ and reports the τ that keeps this at ≤ 5 %.
+
 ```bash
 cd src
 python step1_detect_align.py                # pick people (LFW: >= 20 images, max 50), MTCNN + align -> faces.npz
@@ -46,6 +56,10 @@ python step3_train_evaluate.py              # train M0-M4, test every variant, c
 python step4_figures.py                     # figures + RESULTS.md
 
 python step3_train_evaluate.py --seeds 0 1 2 3 4    # optional: mean ± std over 5 more random 70/30 splits
+
+# already have faces.npz and features from an earlier run? add only the strangers:
+python step1_detect_align.py --strangers-only && python step2_extract_features.py   # step 2 skips up-to-date files
+python step3_train_evaluate.py && python step4_figures.py
 
 # FEI: same steps; step 4 adds pose_fei.png (accuracy and MTCNN detection rate at each of the 14 poses)
 python step1_detect_align.py --dataset fei && python step2_extract_features.py --dataset fei
@@ -66,6 +80,8 @@ Step 3 writes, per dataset:
 - `targets.json` — T1 (full ≥ 95 %), T2 (mask / sunglasses ≥ 85 %), T3 (M2 − M1 ≥ +10 points on M1's worst variant)
 - `predictions.csv` — every test image × method × variant: true name, prediction, confidence, accepted at τ
 - `top_confusions.csv` — the most frequent wrong (true → predicted) pairs
+- `open_set.json` — over τ: known test faces given the right name / a wrong name / "Unknown", and strangers given
+  a name (step 4 draws it as `open_set_M2.png` and adds a table to RESULTS.md)
 - `metrics_seeds.json` — with `--seeds`
 - `models/<dataset>_M1..M4.joblib` — the trained classifiers. `--fit-all` refits them on every image (use it for the live demo)
 
@@ -81,19 +97,24 @@ cd .. && streamlit run app.py                        # web demo: upload or camer
 
 All three default to `models/lfw_M2.joblib`; pass `--model ../models/<file>.joblib` for another one.
 
-**Recognising the group members** (slide 6, Custom Dataset): record 30-40 photos per person in several
-lighting conditions and head angles, then train and run the webcam on that model:
+**Recognising the group members** (slide 6, Custom Dataset): record 30-40 photos per person in at least two
+sessions (another day, room or lighting) so that step 3 can test on a session the model never saw. Record a few
+people outside the group with `--stranger` to see how often a stranger gets a member's name:
 
 ```bash
 cd src
-python capture_faces.py --name Worasak               # SPACE = start/pause, q = quit; repeat for each member
+python capture_faces.py --name Worasak                    # SPACE = start/pause, q = quit -> data/custom/Worasak/<date>/
+python capture_faces.py --name Worasak --session lamp     # second session, other lighting
+python capture_faces.py --name Somchai --stranger         # not a member -> data/unknown/Somchai/<date>/
 python step1_detect_align.py --dataset lfw+custom     # or --dataset custom for the members only
 python step2_extract_features.py --dataset lfw+custom
 python step3_train_evaluate.py --dataset lfw+custom --fit-all
 python webcam.py --model ../models/lfw+custom_M2.joblib
 ```
 
-Use plain English folder names: they are the labels OpenCV draws.
+Use plain English folder names: they are the labels OpenCV draws. With only 5 members the Softmax always picks
+one of the 5, so a stranger gets a member's name unless τ is high enough: use the τ step 3 prints
+(`predict.py`/`webcam.py --tau`; the app shows it in the sidebar).
 
 ## Results (LFW, 62 people, 2,063 faces, test = 30 %)
 

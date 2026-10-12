@@ -39,6 +39,8 @@ with st.sidebar:
     rec = load(str(path))
     st.caption(f"{rec.bundle['method_name']} · {len(rec.names)} คน · fit on {rec.bundle['fit_on']}")
     tau = st.slider("เกณฑ์ความมั่นใจ τ", 0.0, 0.99, float(rec.bundle["tau"]), 0.05)
+    if rec.bundle.get("tau_strangers_5pct") is not None:
+        st.caption(f"τ ≥ {rec.bundle['tau_strangers_5pct']:.2f}: คนแปลกหน้าถูกตอบเป็นชื่อไม่เกิน 5 % (step 3)")
     variant = st.radio("จำลองการบดบัง", list(VARIANTS), format_func=lambda v: f"{VARIANT_TH[v]} ({v})")
     source = st.radio("ภาพ", ["อัปโหลดรูป", "กล้อง"], horizontal=True)
 

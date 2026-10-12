@@ -48,8 +48,10 @@ class Recognizer:
 
     def describe(self):
         b = self.bundle
+        hint = (f" (tau {b['tau_strangers_5pct']} lets at most 5% of strangers through)"
+                if b.get("tau_strangers_5pct") is not None else "")
         return (f"{self.path.name}: {b['method_name']}, {len(self.names)} people, "
-                f"fit on {b['fit_on']}, tau={self.tau}")
+                f"fit on {b['fit_on']}, tau={self.tau}{hint}")
 
     def __call__(self, rgb, variant="full", tau=None, top=5):
         """rgb: HxWx3 uint8 image. Returns one Face per detected face, largest first."""

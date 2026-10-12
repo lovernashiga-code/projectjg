@@ -12,12 +12,18 @@ Methods
   M3  FaceNet(VGGFace2) + Softmax       trained on full faces
   M4  FaceNet(VGGFace2) + Softmax       trained on full + partial faces
 
+Split: 70/30 stratified by image, so every person is in both sets but no photo is (its occluded
+copies stay on the same side). People recorded in two or more capture sessions (custom webcam data)
+instead keep one whole session as their test set, because consecutive webcam frames are near-duplicates.
+
 Outputs in <results>/
   metrics.json        method x variant: accuracy, macro precision/recall/F1, ROC-AUC, top-5, coverage@tau
+  open_set.json       with strangers (unknown.npz): over tau, how many known test faces get the right name,
+                      a wrong name or "Unknown", and how many strangers wrongly get a name
   targets.json        targets T1-T3 from slide 5 checked against the measured accuracies
   predictions.csv     every test image x method x variant: true name, prediction, confidence
   top_confusions.csv  most frequent (true -> predicted) mistakes per method x variant
-  probs.npz, split.npz          used by step 4
+  probs.npz, split.npz          used by step 4 (split.npz also says how the split was made)
   metrics_seeds.json  with --seeds: mean and std over the repeated splits
 and models/<dataset>_<M1..M4>.joblib, the trained classifiers used by predict.py, webcam.py and app.py.
 """
@@ -101,9 +107,41 @@ def fit_deep(m, feats, y, idx):
     return softmax_clf().fit(np.concatenate([F[v][idx] for v in used]), np.tile(y[idx], len(used)))
 
 
-def run_split(faces, y, feats, seed):
-    """Train every method on one stratified 70/30 split and test it on every variant."""
-    idx_tr, idx_te = train_test_split(np.arange(len(y)), test_size=0.3, stratify=y, random_state=seed)
+def make_split(y, sessions, names, seed):
+    """70/30 stratified split of the images. A person with photos from two or more capture sessions keeps
+    one whole session (chosen at random) as test data instead, so near-identical webcam frames never end
+    up on both sides. Returns train indices, test indices and a one-line description."""
+    rng = np.random.default_rng(seed)
+    test, by_session, single = np.zeros(len(y), bool), np.zeros(len(y), bool), []
+    for c in np.unique(y):
+        own = np.where(y == c)[0]
+        ss = sorted(set(sessions[own]))
+        if "" in ss:            # LFW / FEI: no sessions
+            continue
+        if len(ss) < 2:
+            single.append(names[c])
+            continue
+        by_session[own] = True
+        test[own[sessions[own] == ss[rng.integers(len(ss))]]] = True
+    if single:
+        print(f"only one capture session for {', '.join(single)}: their 70/30 split mixes near-duplicate frames "
+              "and overestimates accuracy; record a second session with capture_faces.py")
+    if not by_session.any():   # the original split, unchanged
+        idx_tr, idx_te = train_test_split(np.arange(len(y)), test_size=0.3, stratify=y, random_state=seed)
+        return idx_tr, idx_te, "70/30 stratified split of the images"
+    rest = np.where(~by_session)[0]
+    idx_tr, idx_te = np.where(by_session & ~test)[0], np.where(test)[0]
+    if len(rest):
+        r_tr, r_te = train_test_split(rest, test_size=0.3, stratify=y[rest], random_state=seed)
+        idx_tr, idx_te = np.concatenate([r_tr, idx_tr]), np.concatenate([r_te, idx_te])
+    n = len(np.unique(y[by_session]))
+    return idx_tr, idx_te, (f"one held-out capture session per person for {n} people"
+                            + (", 70/30 stratified split of the images for the rest" if len(rest) else ""))
+
+
+def run_split(faces, y, sessions, names, feats, seed):
+    """Train every method on one split and test it on every variant."""
+    idx_tr, idx_te, how = make_split(y, sessions, names, seed)
     results, probs, clfs = {}, {}, {}
 
     def evaluate(m, clf, test_x, scores=lambda c, X: c.predict_proba(X)):
@@ -121,7 +159,56 @@ def run_split(faces, y, feats, seed):
         clfs[m] = fit_deep(m, feats, y, idx_tr)
         evaluate(m, clfs[m], lambda v: feats[bb][v][idx_te])
         print(f"[seed {seed}] {m} done", {v: round(results[(m, v)]["accuracy"], 3) for v in VARIANTS}, flush=True)
-    return idx_tr, idx_te, results, probs, clfs
+    return idx_tr, idx_te, results, probs, clfs, how
+
+
+TAUS = np.round(np.arange(0, 1, 0.05), 2)
+
+
+def open_set(clf, f_known, y_known, f_strangers):
+    """Over tau: shares of known test faces given the right name / a wrong name / "Unknown",
+    and the share of strangers (never in training) wrongly given a name."""
+    pk, pu = clf.predict_proba(f_known), clf.predict_proba(f_strangers)
+    ok = clf.classes_[pk.argmax(1)] == y_known
+    ck, cu = pk.max(1), pu.max(1)
+    return [{"tau": float(t),
+             "known_correct": float((ok & (ck >= t)).mean()),
+             "known_wrong": float((~ok & (ck >= t)).mean()),
+             "known_unknown": float((ck < t).mean()),
+             "stranger_accepted": float((cu >= t).mean())} for t in TAUS]
+
+
+def tau_for(rows, max_strangers=0.05):
+    """Smallest tau on the grid at which at most this share of strangers gets a name."""
+    return next((r for r in rows if r["stranger_accepted"] <= max_strangers), None)
+
+
+def run_open_set(out, clfs, feats, y, idx_te):
+    """open_set.json for every deep method x variant; prints the full / mask summary."""
+    stranger = {}
+    for bb in {DEEP[m][0] for m in clfs}:
+        if (out / f"unknown_features_{bb}.npz").exists():
+            F = np.load(out / f"unknown_features_{bb}.npz")
+            stranger[bb] = {v: normalize(F[v]) for v in VARIANTS}
+    if not stranger:
+        print("no unknown_features_*.npz: skipping the stranger test (see step 1 and 2)")
+        return {}
+    rows = {(m, v): open_set(clf, feats[DEEP[m][0]][v][idx_te], y[idx_te], stranger[DEEP[m][0]][v])
+            for m, clf in clfs.items() if DEEP[m][0] in stranger for v in VARIANTS}
+    n = len(next(iter(stranger.values()))["full"])
+    (out / "open_set.json").write_text(json.dumps(
+        {"n_strangers": n, "n_known_test": int(len(idx_te)), "tau_default": TAU,
+         "rows": [{"method": m, "variant": v, **r} for (m, v), rs in rows.items() for r in rs]}, indent=1))
+    print(f"\nstrangers: {n} photos of people never seen in training. 'Accepted' = given a name, not Unknown")
+    at = int(np.argmin(np.abs(TAUS - TAU)))
+    for (m, v), rs in rows.items():
+        if v in ("full", "mask"):
+            best = tau_for(rs)
+            pick = (f"tau {best['tau']:.2f}: strangers {100 * best['stranger_accepted']:5.1f}%, known right "
+                    f"{100 * best['known_correct']:5.1f}%" if best else "no tau keeps strangers <= 5%")
+            print(f"{m} {v:5}  tau {TAU}: strangers accepted {100 * rs[at]['stranger_accepted']:5.1f}%, "
+                  f"known right {100 * rs[at]['known_correct']:5.1f}%  |  {pick}")
+    return rows
 
 
 def check_targets(results):
@@ -166,14 +253,16 @@ def write_confusions(path, probs, y_te, names, top=5):
                 w.writerow([*key.split("|"), names[t], names[q], c])
 
 
-def save_models(dataset, clfs, names, fit_on):
+def save_models(dataset, clfs, names, fit_on, open_rows):
     MODELS.mkdir(exist_ok=True)
     for m, clf in clfs.items():
         bb, used = DEEP[m]
         path = MODELS / f"{dataset}_{m}.joblib"
+        best = tau_for(open_rows.get((m, "full"), []))
         joblib.dump({"method": m, "method_name": METHODS[m], "dataset": dataset, "backbone": bb,
                      "trained_on_variants": used, "fit_on": fit_on, "classifier": clf,
-                     "names": [str(n) for n in names], "tau": TAU}, path)
+                     "names": [str(n) for n in names], "tau": TAU,
+                     "tau_strangers_5pct": best["tau"] if best else None}, path)
         print("saved", path)
 
 
@@ -189,6 +278,7 @@ def main(dataset, seeds, fit_all):
     d = np.load(out / "faces.npz")
     faces, y, names = d["faces"], d["labels"], [str(n) for n in d["names"]]
     files = d["files"] if "files" in d else np.full(len(y), "")
+    sessions = d["sessions"] if "sessions" in d else np.full(len(y), "")
     feats = {}
     for bb in ("vggface", "facenet"):
         if (out / f"features_{bb}.npz").exists():
@@ -197,8 +287,9 @@ def main(dataset, seeds, fit_all):
         else:
             print(f"features_{bb}.npz not found: skipping its methods")
 
-    idx_tr, idx_te, results, probs, clfs = run_split(faces, y, feats, SEED)
-    np.savez(out / "split.npz", train=idx_tr, test=idx_te)
+    idx_tr, idx_te, results, probs, clfs, how = run_split(faces, y, sessions, names, feats, SEED)
+    print("split:", how)
+    np.savez(out / "split.npz", train=idx_tr, test=idx_te, how=how)
     np.savez_compressed(out / "probs.npz", y_test=y[idx_te], idx_test=idx_te, **probs)
     rows = [{"method": m, "method_name": METHODS[m], "variant": v, **{k: round(float(x), 4) for k, x in r.items()}}
             for (m, v), r in results.items()]
@@ -211,14 +302,16 @@ def main(dataset, seeds, fit_all):
     for t, r in targets.items():
         print(f"{t} {'PASS' if r['pass'] else 'FAIL'}: {r['desc']} = {r['value']} (target {r['target']})")
 
+    open_rows = run_open_set(out, clfs, feats, y, idx_te)
+
     if fit_all:   # demo model: same recipe, every image of every person
         clfs = {m: fit_deep(m, feats, y, np.arange(len(y))) for m in clfs}
-    save_models(dataset, clfs, names, "all images" if fit_all else f"70% train split (seed {SEED})")
+    save_models(dataset, clfs, names, "all images" if fit_all else f"train split (seed {SEED}): {how}", open_rows)
 
     if seeds:
         per = {}
         for s in seeds:
-            r = results if s == SEED else run_split(faces, y, feats, s)[2]
+            r = results if s == SEED else run_split(faces, y, sessions, names, feats, s)[2]
             for k, mtr in r.items():
                 per.setdefault(k, []).append(mtr)
         summary = [{"method": m, "method_name": METHODS[m], "variant": v, "seeds": seeds,

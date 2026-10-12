@@ -1,12 +1,17 @@
 """Record face photos of one person from a webcam for the custom dataset (slide 6).
 
-  python capture_faces.py --name Worasak                 # -> data/custom/Worasak/0001.jpg, 0002.jpg, ...
-  python capture_faces.py --name Worasak --count 40 --interval 0.4
+  python capture_faces.py --name Worasak                    # -> data/custom/Worasak/<today>/0001.jpg ...
+  python capture_faces.py --name Worasak --session lamp     # a second session, e.g. other lighting
+  python capture_faces.py --name Somchai --stranger         # someone outside the group -> data/unknown/
 
 SPACE = start / pause recording, q or Esc = quit. A frame is saved only while exactly one face is
-visible, at most once per --interval seconds. Turn your head a little, move closer and further away,
-and record in two or three lighting conditions (slide 6: "หลายแสง หลายมุม"). Use a plain English name
-without spaces: it becomes the folder name and the label that webcam.py draws.
+visible, at most once per --interval seconds. Turn your head a little and move closer and further away.
+
+Record every member in at least two sessions (another day, room or lighting; slide 6: "หลายแสง หลายมุม").
+Frames from one session are near-duplicates, so step 3 tests each member on a whole session the model
+never saw. Strangers (--stranger) are never trained on: step 3 counts how many of them still get a
+member's name, which shows how high tau must be. Use a plain English name without spaces: it becomes
+the folder name and the label that webcam.py draws.
 
 Then: python step1_detect_align.py --dataset custom   (or --dataset lfw+custom), step 2, step 3.
 """
@@ -25,9 +30,11 @@ def main():
     ap.add_argument("--count", type=int, default=30)
     ap.add_argument("--interval", type=float, default=0.5)
     ap.add_argument("--camera", type=int, default=0)
+    ap.add_argument("--session", default=time.strftime("%Y%m%d"), help="sub-folder name (default: today's date)")
+    ap.add_argument("--stranger", action="store_true", help="someone outside the group: save to data/unknown/")
     a = ap.parse_args()
 
-    out = DATA / "custom" / a.name
+    out = DATA / ("unknown" if a.stranger else "custom") / a.name / a.session
     out.mkdir(parents=True, exist_ok=True)
     n = len(list(out.glob("*.jpg")))
     mtcnn = MTCNN(keep_all=True, device="cpu")

@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.metrics import auc, confusion_matrix, roc_curve
 from sklearn.preprocessing import label_binarize
 
-from common import OCCLUDED, VARIANT_TH, VARIANTS, apply_variant, out_dir
+from common import OCCLUDED, TAU, VARIANT_TH, VARIANTS, apply_variant, out_dir
 
 matplotlib.rcParams.update({
     "font.family": ["Leelawadee UI", "Tahoma", "Noto Sans Thai", "Sarabun", "Garuda", "sans-serif"],
@@ -206,6 +206,10 @@ def main(dataset):
     if "pose_idx" in d and (d["pose_idx"] >= 0).any():
         summary["pose"] = pose_figure(out, d["pose_idx"], d["yaw"], y, idx_te, P, methods)
 
+    # 12. strangers: who gets a name at each tau (open-set test)
+    if (out / "open_set.json").exists():
+        open_set_figure(out, best)
+
     (out / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
     write_report(out, dataset, M, methods, names, labels)
     print("figures saved to", FIG)
@@ -252,11 +256,38 @@ def fmt(x):
     return "–" if x is None or x != x else f"{x:.3f}"     # x != x: NaN
 
 
+def open_set_figure(out, best):
+    opn = json.loads((out / "open_set.json").read_text())
+    rows = [r for r in opn["rows"] if r["method"] == best]
+    shown = [v for v in ("full", "mask", "sunglasses") if any(r["variant"] == v for r in rows)]
+    if not shown:
+        return
+    fig, axes = plt.subplots(1, len(shown), figsize=(5.4 * len(shown), 4.9), sharey=True, squeeze=False)
+    for a, v in zip(axes[0], shown):
+        rs = [r for r in rows if r["variant"] == v]
+        t = [r["tau"] for r in rs]
+        a.plot(t, [100 * r["known_correct"] for r in rs], color="#2a78d6", lw=2.2, label="คนที่รู้จัก: ตอบชื่อถูก")
+        a.plot(t, [100 * r["known_wrong"] for r in rs], color="#e34948", lw=2, label="คนที่รู้จัก: ตอบเป็นคนอื่น")
+        a.plot(t, [100 * r["stranger_accepted"] for r in rs], color="#eb6834", lw=2.2, ls="--",
+               label=f"ภาพคนแปลกหน้า {opn['n_strangers']} ภาพ: ถูกตอบเป็นชื่อคนที่รู้จัก")
+        a.axvline(TAU, color="#b5b5b0", lw=1, ls=":")
+        a.set_title(f"ทดสอบ{VARIANT_TH[v]}", fontsize=13, color=INK)
+        a.set_xlabel("เกณฑ์ความมั่นใจ τ (ต่ำกว่านี้ตอบ \"ไม่รู้จัก\")")
+        a.set_ylim(0, 102)
+        a.yaxis.grid(True, color="#e6e6e3"); a.set_axisbelow(True)
+    axes[0, 0].set_ylabel("% ของภาพ")
+    fig.legend(*axes[0, 0].get_legend_handles_labels(), frameon=False, ncol=3, fontsize=11,
+               loc="upper center", bbox_to_anchor=(0.5, -0.02))
+    save(fig, f"open_set_{best}.png")
+
+
 def write_report(out, dataset, M, methods, names, labels):
     """results/RESULTS.md: the numbers behind the slides, regenerated from metrics.json and targets.json."""
     acc = {(r["method"], r["variant"]): r for r in M}
+    split = np.load(out / "split.npz") if (out / "split.npz").exists() else {}
+    how = str(split["how"]) if "how" in split else "70/30 stratified split of the images"
     lines = [f"# Results: {dataset}", "",
-             f"{len(names)} people, {len(labels)} aligned faces, 70/30 stratified split (seed 42).", "",
+             f"{len(names)} people, {len(labels)} aligned faces. Test set: {how} (seed 42).", "",
              "## Accuracy (%) by test variant", "",
              "| Variant | " + " | ".join(f"{m} {METHOD_SHORT[m]}" for m in methods) + " |",
              "|---|" + "---:|" * len(methods)]
@@ -281,6 +312,25 @@ def write_report(out, dataset, M, methods, names, labels):
                 if isinstance(val, dict) else f"{val:.3f}"
             lines.append(f"| {t} {r['desc']} | {'+' if t == 'T3' else '≥ '}{r['target']} | {val} | "
                          f"{'PASS' if r['pass'] else 'FAIL'} |")
+    op = out / "open_set.json"
+    if op.exists():
+        opn = json.loads(op.read_text())
+        R = {(r["method"], r["variant"], r["tau"]): r for r in opn["rows"] if r["method"] == best}
+        lines += ["", f"## Strangers ({best}, open-set test)", "",
+                  f"{opn['n_strangers']} photos of people who are not in the training set, tested like the "
+                  f"{opn['n_known_test']} known test faces. *Accepted* = given a name instead of \"Unknown\".", "",
+                  f"| Variant | τ = {TAU}: known, right name | known, wrong name | strangers accepted "
+                  "| τ for ≤ 5 % strangers accepted | known, right name at that τ |",
+                  "|---|---:|---:|---:|---:|---:|"]
+        for v in VARIANTS:
+            rs = [R[k] for k in sorted(R) if k[1] == v]
+            if not rs:
+                continue
+            at = min(rs, key=lambda r: abs(r["tau"] - TAU))
+            ok = next((r for r in rs if r["stranger_accepted"] <= 0.05), None)
+            lines.append(f"| {v} | {100 * at['known_correct']:.1f} % | {100 * at['known_wrong']:.1f} % | "
+                         f"{100 * at['stranger_accepted']:.1f} % | " +
+                         (f"{ok['tau']:.2f} | {100 * ok['known_correct']:.1f} % |" if ok else "– | – |"))
     sp = out / "metrics_seeds.json"
     if sp.exists():
         S = {(r["method"], r["variant"]): r for r in json.loads(sp.read_text())}

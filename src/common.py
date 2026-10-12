@@ -19,6 +19,7 @@ IMG = 224              # aligned face size (VGG-Face input)
 TAU = 0.5              # confidence threshold: below it the system answers "unknown" (slide 9)
 UNKNOWN = "Unknown"
 IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp"}
+N_STRANGERS = 500      # LFW people outside the training set used for the open-set ("Unknown") test
 
 # Which images each dataset contributes. LFW follows slide 7 (>= 20 images, at most 50 per person).
 # FEI has 14 images for each of 200 people and the custom set is small, so they keep everything.
