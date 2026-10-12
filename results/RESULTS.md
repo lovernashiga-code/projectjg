@@ -1,17 +1,17 @@
 # Results: lfw
 
-62 people, 2063 aligned faces, 70/30 stratified split (seed 42).
+62 people, 2063 aligned faces. Test set: 70/30 stratified split of the images (seed 42).
 
 ## Accuracy (%) by test variant
 
 | Variant | M0 Eigenfaces+SVM | M1 VGG-Face full | M2 VGG-Face full+partial | M3 FaceNet full | M4 FaceNet full+partial |
 |---|---:|---:|---:|---:|---:|
 | full (ใบหน้าเต็ม) | 59.5 | 99.7 | 99.8 | 99.8 | 99.7 |
-| upper_half (ครึ่งบน) | 7.0 | 90.8 | 98.4 | 94.7 | 97.7 |
+| upper_half (ครึ่งบน) | 6.9 | 90.8 | 98.4 | 94.7 | 97.7 |
 | lower_half (ครึ่งล่าง) | 4.0 | 36.7 | 85.1 | 60.9 | 88.7 |
 | eyes_only (เฉพาะดวงตา) | 2.4 | 44.6 | 91.1 | 69.1 | 93.2 |
 | nose_mouth (เฉพาะจมูก+ปาก) | 1.1 | 36.7 | 89.3 | 55.4 | 91.6 |
-| mask (สวมหน้ากากอนามัย) | 5.7 | 85.3 | 97.2 | 93.5 | 97.7 |
+| mask (สวมหน้ากากอนามัย) | 5.7 | 85.3 | 97.3 | 93.5 | 97.7 |
 | sunglasses (สวมแว่นกันแดด) | 6.6 | 77.9 | 94.8 | 89.0 | 97.7 |
 
 ## M2: all metrics
