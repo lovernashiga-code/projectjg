@@ -27,10 +27,11 @@ class VGGFace(nn.Module):
         self.fc6 = nn.Linear(512 * 7 * 7, 4096)
         self.fc7 = nn.Linear(4096, 4096)
         self.fc8 = nn.Linear(4096, 2622)
+        self.register_buffer("mean_bgr", MEAN_BGR.clone())   # moves to the GPU with the model
 
     def forward(self, x):
         """x: uint8-range RGB tensor (N, 3, 224, 224). Returns the 4096-d fc7 descriptor."""
-        x = x[:, [2, 1, 0]] - MEAN_BGR
+        x = x[:, [2, 1, 0]] - self.mean_bgr
         x = self.features(x).flatten(1)
         x = torch.relu(self.fc6(x))
         return torch.relu(self.fc7(x))
