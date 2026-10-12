@@ -323,7 +323,7 @@ def main(dataset, seeds, fit_all):
     print("split:", how)
     np.savez(out / "split.npz", train=idx_tr, test=idx_te, how=how)
     np.savez_compressed(out / "probs.npz", y_test=y[idx_te], idx_test=idx_te, **probs)
-    rows = [{"method": m, "method_name": METHODS[m], "variant": v, **{k: round(float(x), 4) for k, x in r.items()},
+    rows = [{"method": m, "method_name": METHODS[m], "variant": v, **{k: round(float(x), 6) for k, x in r.items()},
              **({"augmented_copies": len(aug[backbone(m)]["full"])} if m.endswith(AUG) else {})}
             for (m, v), r in results.items()]
     (out / "metrics.json").write_text(json.dumps(rows, indent=2))
