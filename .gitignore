@@ -4,7 +4,7 @@ weights/
 src.zip
 
 # Large result artifacts
-results/*.npz
+results/**/*.npz
 
 # Python
 __pycache__/
@@ -21,3 +21,7 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Outputs of predict.py / webcam.py
+results/predict/
+results/webcam/
