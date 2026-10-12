@@ -79,6 +79,21 @@ def apply_variant(img, name):
     return out
 
 
+def augment(img, rng):
+    """One random training copy of an aligned face (slide 6): rotation within +/-15 degrees, random crop
+    (zoom in up to 15 % and shift up to 5 %), horizontal flip, brightness / contrast and camera noise.
+    The occlusion variant is applied afterwards, so the occluder lands slightly off the template, as a
+    real mask or pair of glasses would."""
+    M = cv2.getRotationMatrix2D((IMG / 2, IMG / 2), rng.uniform(-15, 15), rng.uniform(1.0, 1.15))
+    M[:, 2] += rng.uniform(-0.05, 0.05, 2) * IMG
+    out = cv2.warpAffine(img, M, (IMG, IMG), borderMode=cv2.BORDER_REFLECT).astype(np.float32)
+    if rng.random() < 0.5:
+        out = out[:, ::-1]                                   # the template is left-right symmetric
+    out = (out - 128) * rng.uniform(0.75, 1.25) + 128 + rng.uniform(-30, 30)   # contrast, brightness
+    out += rng.normal(0, rng.uniform(0, 8), out.shape)                          # sensor noise
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
 def align(img, pts):
     """Similarity-transform a face so its 5 MTCNN landmarks land on TEMPLATE (224x224 output)."""
     M, _ = cv2.estimateAffinePartial2D(np.asarray(pts, np.float32), TEMPLATE, method=cv2.LMEDS)

@@ -11,6 +11,8 @@ Methods
   M2  VGG-Face + Softmax                trained on full + partial faces (transfer learning on partial data)
   M3  FaceNet(VGGFace2) + Softmax       trained on full faces
   M4  FaceNet(VGGFace2) + Softmax       trained on full + partial faces
+  M1+aug ... M4+aug  the same, plus the augmented copies of the training images (slide 6), when step 2
+                     was run with --augment K. The test images and their copies are never trained on.
 
 Split: 70/30 stratified by image, so every person is in both sets but no photo is (its occluded
 copies stay on the same side). People recorded in two or more capture sessions (custom webcam data)
@@ -56,6 +58,12 @@ METHODS = {
 # deep methods: backbone and which variants of the training images they learn from
 DEEP = {"M1": ("vggface", ["full"]), "M2": ("vggface", list(VARIANTS)),
         "M3": ("facenet", ["full"]), "M4": ("facenet", list(VARIANTS))}
+AUG = "+aug"     # suffix: also trained on the augmented copies of the training images
+METHODS.update({m + AUG: METHODS[m] + " + augmentation" for m in DEEP})
+
+
+def backbone(m):
+    return DEEP[m.removesuffix(AUG)][0]
 
 
 def metrics(y, prob, classes):
@@ -101,10 +109,13 @@ def gray(faces, v):
                      for f in faces]).reshape(len(faces), -1) / 255.0
 
 
-def fit_deep(m, feats, y, idx):
-    bb, used = DEEP[m]
-    F = feats[bb]
-    return softmax_clf().fit(np.concatenate([F[v][idx] for v in used]), np.tile(y[idx], len(used)))
+def fit_deep(m, feats, aug, y, idx):
+    """Softmax on the training images idx; an AUG method also gets every augmented copy of those images."""
+    bb, used = DEEP[m.removesuffix(AUG)]
+    X = [feats[bb][v][idx] for v in used]
+    if m.endswith(AUG):
+        X += [copy[idx] for v in used for copy in aug[bb][v]]
+    return softmax_clf().fit(np.concatenate(X), np.tile(y[idx], len(X)))
 
 
 def make_split(y, sessions, names, seed):
@@ -139,7 +150,7 @@ def make_split(y, sessions, names, seed):
                             + (", 70/30 stratified split of the images for the rest" if len(rest) else ""))
 
 
-def run_split(faces, y, sessions, names, feats, seed):
+def run_split(faces, y, sessions, names, feats, aug, seed):
     """Train every method on one split and test it on every variant."""
     idx_tr, idx_te, how = make_split(y, sessions, names, seed)
     results, probs, clfs = {}, {}, {}
@@ -153,10 +164,11 @@ def run_split(faces, y, sessions, names, feats, seed):
     clf = eigenfaces_clf(len(idx_tr)).fit(gray(faces[idx_tr], "full"), y[idx_tr])
     evaluate("M0", clf, lambda v: gray(faces[idx_te], v), svm_scores)
     print(f"[seed {seed}] M0 done", flush=True)
-    for m, (bb, _) in DEEP.items():
-        if bb not in feats:
+    for m in [m for base in DEEP for m in (base, base + AUG)]:
+        bb = backbone(m)
+        if bb not in feats or (m.endswith(AUG) and bb not in aug):
             continue
-        clfs[m] = fit_deep(m, feats, y, idx_tr)
+        clfs[m] = fit_deep(m, feats, aug, y, idx_tr)
         evaluate(m, clfs[m], lambda v: feats[bb][v][idx_te])
         print(f"[seed {seed}] {m} done", {v: round(results[(m, v)]["accuracy"], 3) for v in VARIANTS}, flush=True)
     return idx_tr, idx_te, results, probs, clfs, how
@@ -186,15 +198,15 @@ def tau_for(rows, max_strangers=0.05):
 def run_open_set(out, clfs, feats, y, idx_te):
     """open_set.json for every deep method x variant; prints the full / mask summary."""
     stranger = {}
-    for bb in {DEEP[m][0] for m in clfs}:
+    for bb in {backbone(m) for m in clfs}:
         if (out / f"unknown_features_{bb}.npz").exists():
             F = np.load(out / f"unknown_features_{bb}.npz")
             stranger[bb] = {v: normalize(F[v]) for v in VARIANTS}
     if not stranger:
         print("no unknown_features_*.npz: skipping the stranger test (see step 1 and 2)")
         return {}
-    rows = {(m, v): open_set(clf, feats[DEEP[m][0]][v][idx_te], y[idx_te], stranger[DEEP[m][0]][v])
-            for m, clf in clfs.items() if DEEP[m][0] in stranger for v in VARIANTS}
+    rows = {(m, v): open_set(clf, feats[backbone(m)][v][idx_te], y[idx_te], stranger[backbone(m)][v])
+            for m, clf in clfs.items() if backbone(m) in stranger for v in VARIANTS}
     n = len(next(iter(stranger.values()))["full"])
     (out / "open_set.json").write_text(json.dumps(
         {"n_strangers": n, "n_known_test": int(len(idx_te)), "tau_default": TAU,
@@ -206,7 +218,7 @@ def run_open_set(out, clfs, feats, y, idx_te):
             best = tau_for(rs)
             pick = (f"tau {best['tau']:.2f}: strangers {100 * best['stranger_accepted']:5.1f}%, known right "
                     f"{100 * best['known_correct']:5.1f}%" if best else "no tau keeps strangers <= 5%")
-            print(f"{m} {v:5}  tau {TAU}: strangers accepted {100 * rs[at]['stranger_accepted']:5.1f}%, "
+            print(f"{m:7} {v:5}  tau {TAU}: strangers accepted {100 * rs[at]['stranger_accepted']:5.1f}%, "
                   f"known right {100 * rs[at]['known_correct']:5.1f}%  |  {pick}")
     return rows
 
@@ -256,7 +268,7 @@ def write_confusions(path, probs, y_te, names, top=5):
 def save_models(dataset, clfs, names, fit_on, open_rows):
     MODELS.mkdir(exist_ok=True)
     for m, clf in clfs.items():
-        bb, used = DEEP[m]
+        bb, used = DEEP[m.removesuffix(AUG)]
         path = MODELS / f"{dataset}_{m}.joblib"
         best = tau_for(open_rows.get((m, "full"), []))
         joblib.dump({"method": m, "method_name": METHODS[m], "dataset": dataset, "backbone": bb,
@@ -273,6 +285,25 @@ def print_table(results, key="accuracy"):
         print(v.ljust(14) + "".join(f"{100 * results[(m, v)][key]:8.1f}" for m in methods))
 
 
+def load_augmented(out, feats, n):
+    """{backbone: {variant: (K, N, D)}} from features_aug_*.npz (step 2 --augment K), if current."""
+    aug = {}
+    for bb in feats:
+        path = out / f"features_aug_{bb}.npz"
+        if not path.exists():
+            continue
+        if path.stat().st_mtime < (out / "faces.npz").stat().st_mtime:
+            print(f"{path.name} is older than faces.npz: ignored (rerun step 2 with --augment)")
+            continue
+        A = np.load(path)
+        if A["full"].shape[1] != n:
+            print(f"{path.name} does not match faces.npz: ignored (rerun step 2 with --augment)")
+            continue
+        aug[bb] = {v: normalize(A[v].reshape(-1, A[v].shape[-1])).reshape(A[v].shape) for v in VARIANTS}
+        print(f"{path.name}: {A['full'].shape[0]} augmented copies per image -> methods with {AUG}")
+    return aug
+
+
 def main(dataset, seeds, fit_all):
     out = out_dir(dataset)
     d = np.load(out / "faces.npz")
@@ -286,12 +317,14 @@ def main(dataset, seeds, fit_all):
             feats[bb] = {v: normalize(F[v]) for v in VARIANTS}
         else:
             print(f"features_{bb}.npz not found: skipping its methods")
+    aug = load_augmented(out, feats, len(y))
 
-    idx_tr, idx_te, results, probs, clfs, how = run_split(faces, y, sessions, names, feats, SEED)
+    idx_tr, idx_te, results, probs, clfs, how = run_split(faces, y, sessions, names, feats, aug, SEED)
     print("split:", how)
     np.savez(out / "split.npz", train=idx_tr, test=idx_te, how=how)
     np.savez_compressed(out / "probs.npz", y_test=y[idx_te], idx_test=idx_te, **probs)
-    rows = [{"method": m, "method_name": METHODS[m], "variant": v, **{k: round(float(x), 4) for k, x in r.items()}}
+    rows = [{"method": m, "method_name": METHODS[m], "variant": v, **{k: round(float(x), 4) for k, x in r.items()},
+             **({"augmented_copies": len(aug[backbone(m)]["full"])} if m.endswith(AUG) else {})}
             for (m, v), r in results.items()]
     (out / "metrics.json").write_text(json.dumps(rows, indent=2))
     write_predictions(out / "predictions.csv", probs, y, idx_te, names, files)
@@ -305,13 +338,13 @@ def main(dataset, seeds, fit_all):
     open_rows = run_open_set(out, clfs, feats, y, idx_te)
 
     if fit_all:   # demo model: same recipe, every image of every person
-        clfs = {m: fit_deep(m, feats, y, np.arange(len(y))) for m in clfs}
+        clfs = {m: fit_deep(m, feats, aug, y, np.arange(len(y))) for m in clfs}
     save_models(dataset, clfs, names, "all images" if fit_all else f"train split (seed {SEED}): {how}", open_rows)
 
     if seeds:
         per = {}
         for s in seeds:
-            r = results if s == SEED else run_split(faces, y, sessions, names, feats, s)[2]
+            r = results if s == SEED else run_split(faces, y, sessions, names, feats, aug, s)[2]
             for k, mtr in r.items():
                 per.setdefault(k, []).append(mtr)
         summary = [{"method": m, "method_name": METHODS[m], "variant": v, "seeds": seeds,

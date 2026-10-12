@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from common import WEIGHTS
 
 BACKBONES = ("vggface", "facenet")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def load_backbone(name):
@@ -18,7 +19,7 @@ def load_backbone(name):
         from vggface import load_vggface
         path = WEIGHTS / "rcmalli_vggface_tf_vgg16.h5"
         if not path.exists():
-            raise FileNotFoundError(f"{path} missing: run download_data.py --weights (see README)")
+            raise FileNotFoundError(f"{path} missing: run download_data.py weights (see README)")
         model = load_vggface(path)
         prep = lambda x: x                                     # noqa: E731
     elif name == "facenet":
@@ -27,7 +28,7 @@ def load_backbone(name):
         prep = lambda x: (F.interpolate(x, size=160, mode="bilinear", align_corners=False) - 127.5) / 128  # noqa: E731
     else:
         raise ValueError(f"unknown backbone {name!r}, expected one of {BACKBONES}")
-    return model, prep
+    return model.to(DEVICE), prep
 
 
 @torch.no_grad()
@@ -35,6 +36,6 @@ def extract(model, prep, faces, bs=32):
     """faces: (N, 224, 224, 3) uint8 aligned faces -> (N, D) float32 features."""
     out = []
     for i in range(0, len(faces), bs):
-        x = torch.from_numpy(np.ascontiguousarray(faces[i:i + bs])).permute(0, 3, 1, 2).float()
-        out.append(model(prep(x)).numpy())
+        x = torch.from_numpy(np.ascontiguousarray(faces[i:i + bs])).permute(0, 3, 1, 2).float().to(DEVICE)
+        out.append(model(prep(x)).cpu().numpy())
     return np.concatenate(out).astype(np.float32)

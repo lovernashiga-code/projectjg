@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.metrics import auc, confusion_matrix, roc_curve
 from sklearn.preprocessing import label_binarize
 
-from common import OCCLUDED, TAU, VARIANT_TH, VARIANTS, apply_variant, out_dir
+from common import OCCLUDED, TAU, VARIANT_TH, VARIANTS, apply_variant, augment, out_dir
 
 matplotlib.rcParams.update({
     "font.family": ["Leelawadee UI", "Tahoma", "Noto Sans Thai", "Sarabun", "Garuda", "sans-serif"],
@@ -80,6 +80,17 @@ def main(dataset):
         a.set_title(VARIANT_TH[v], fontsize=14, color=INK)
     save(fig, "variants.png")
 
+    # 3. data augmentation (slide 6): random training copies of the same face, plain and with a mask
+    rng_aug = np.random.default_rng(1)          # own stream: the other figures keep their samples
+    copies = [faces[i]] + [augment(faces[i], rng_aug) for _ in range(5)]
+    fig, ax = plt.subplots(2, len(copies), figsize=(2.2 * len(copies), 4.9))
+    for c, img in enumerate(copies):
+        for r, v in enumerate(["full", "mask"]):
+            ax[r, c].imshow(apply_variant(img, v)); ax[r, c].axis("off")
+        ax[0, c].set_title("ภาพเดิม" if c == 0 else f"สุ่มครั้งที่ {c}", fontsize=12, color=INK)
+    fig.subplots_adjust(wspace=0.06, hspace=0.06)
+    save(fig, "augmentation.png")
+
     # 4. images per class
     cnt = np.bincount(labels)
     order = np.argsort(-cnt)
@@ -105,6 +116,11 @@ def main(dataset):
     ax.yaxis.grid(True, color="#e6e6e3"); ax.set_axisbelow(True)
     ax.legend(ncol=len(methods), frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.13), fontsize=12)
     save(fig, "accuracy_by_variant.png")
+
+    # 5b. the same methods with and without augmented training copies (step 2 --augment)
+    pairs = [m for m in methods if (m + "+aug", "full") in acc]
+    if pairs:
+        augmentation_figure(acc, pairs)
 
     # 6. confusion matrices on the hardest variant (lower half): full 62x62, and top-12 classes M1 vs M2
     best = "M2" if "M2" in methods else methods[-1]
@@ -256,6 +272,22 @@ def fmt(x):
     return "–" if x is None or x != x else f"{x:.3f}"     # x != x: NaN
 
 
+def augmentation_figure(acc, pairs):
+    bars = [x for m in pairs for x in (m, m + "+aug")]
+    fig, ax = plt.subplots(figsize=(15, 5.6))
+    w = 0.8 / len(bars)
+    for j, m in enumerate(bars):
+        base, is_aug = m.removesuffix("+aug"), m.endswith("+aug")
+        xs = np.arange(len(VARIANTS)) + (j - (len(bars) - 1) / 2) * w
+        ax.bar(xs, [100 * acc[(m, v)] for v in VARIANTS], w * 0.9, color=COL[base], hatch="///" if is_aug else None,
+               edgecolor="#fcfcfb", linewidth=0.5, label=LABEL[base] + (" + augmentation" if is_aug else ""))
+    ax.set_xticks(range(len(VARIANTS)), [VARIANT_TH[v] for v in VARIANTS], fontsize=13)
+    ax.set_ylabel("Accuracy (%)"); ax.set_ylim(0, 108)
+    ax.yaxis.grid(True, color="#e6e6e3"); ax.set_axisbelow(True)
+    ax.legend(ncol=min(4, len(bars)), frameon=False, loc="upper center", bbox_to_anchor=(0.5, 1.2), fontsize=11)
+    save(fig, "augmentation_effect.png")
+
+
 def open_set_figure(out, best):
     opn = json.loads((out / "open_set.json").read_text())
     rows = [r for r in opn["rows"] if r["method"] == best]
@@ -312,6 +344,16 @@ def write_report(out, dataset, M, methods, names, labels):
                 if isinstance(val, dict) else f"{val:.3f}"
             lines.append(f"| {t} {r['desc']} | {'+' if t == 'T3' else '≥ '}{r['target']} | {val} | "
                          f"{'PASS' if r['pass'] else 'FAIL'} |")
+    aug = [m for m in methods if (m + "+aug", "full") in acc]
+    if aug:
+        k = acc[(aug[0] + "+aug", "full")].get("augmented_copies", "K")
+        cols = [x for m in aug for x in (m, m + "+aug")]
+        lines += ["", "## Data augmentation (slide 6)", "",
+                  f"Accuracy (%) without and with {k} augmented copies of every training image "
+                  "(rotation ±15°, random crop, flip, brightness/contrast, noise; test images never augmented).", "",
+                  "| Variant | " + " | ".join(cols) + " |", "|---|" + "---:|" * len(cols)]
+        for v in VARIANTS:
+            lines.append(f"| {v} | " + " | ".join(f"{100 * acc[(m, v)]['accuracy']:.1f}" for m in cols) + " |")
     op = out / "open_set.json"
     if op.exists():
         opn = json.loads(op.read_text())

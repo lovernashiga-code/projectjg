@@ -57,6 +57,9 @@ python step4_figures.py                     # figures + RESULTS.md
 
 python step3_train_evaluate.py --seeds 0 1 2 3 4    # optional: mean ± std over 5 more random 70/30 splits
 
+# data augmentation (slide 6): 2 random copies of every face -> step 3 adds M1+aug ... M4+aug
+python step2_extract_features.py --augment 2 && python step3_train_evaluate.py && python step4_figures.py
+
 # already have faces.npz and features from an earlier run? add only the strangers:
 python step1_detect_align.py --strangers-only && python step2_extract_features.py   # step 2 skips up-to-date files
 python step3_train_evaluate.py && python step4_figures.py
@@ -73,6 +76,16 @@ python step3_train_evaluate.py --dataset fei && python step4_figures.py --datase
 | M2 | VGG-Face fc7 + Softmax | full + 6 partial variants — training (ข) |
 | M3 | FaceNet (VGGFace2) + Softmax | full faces only |
 | M4 | FaceNet (VGGFace2) + Softmax | full + 6 partial variants |
+| M1+aug … M4+aug | same as M1 … M4 | plus K augmented copies of every *training* image (step 2 `--augment K`) |
+
+**Data augmentation** (slide 6, `common.augment`): each copy of an aligned face is rotated by up to ±15°, randomly
+cropped (zoom up to 15 %, shift up to 5 %), flipped left-right half of the time, given new brightness and contrast
+and a little camera noise; the occlusion is applied afterwards, so the mask or glasses land slightly off the
+template as real ones do. Step 2 makes the copies for every face, but step 3 trains only on the copies of its
+training images and always tests on the original, un-augmented test images, so nothing leaks. Step 4 draws
+`augmentation.png` (examples for the slide) and `augmentation_effect.png`, and RESULTS.md gets a with/without
+table. Copies multiply step 2's time by K (a CUDA GPU is used automatically when present); K = 2 suits LFW,
+K = 5 a small custom set.
 
 Step 3 writes, per dataset:
 
@@ -107,9 +120,9 @@ python capture_faces.py --name Worasak                    # SPACE = start/pause,
 python capture_faces.py --name Worasak --session lamp     # second session, other lighting
 python capture_faces.py --name Somchai --stranger         # not a member -> data/unknown/Somchai/<date>/
 python step1_detect_align.py --dataset lfw+custom     # or --dataset custom for the members only
-python step2_extract_features.py --dataset lfw+custom
+python step2_extract_features.py --dataset lfw+custom --augment 2   # K copies of every face, LFW too: slow on CPU
 python step3_train_evaluate.py --dataset lfw+custom --fit-all
-python webcam.py --model ../models/lfw+custom_M2.joblib
+python webcam.py --model "../models/lfw+custom_M2+aug.joblib"
 ```
 
 Use plain English folder names: they are the labels OpenCV draws. With only 5 members the Softmax always picks
