@@ -1,0 +1,15 @@
+# pip install -r requirements.txt
+# pip install --no-deps facenet-pytorch==2.6.0   (its own pins would downgrade torch and numpy)
+torch>=2.2
+torchvision>=0.17
+numpy
+scikit-learn>=1.3
+opencv-python          # webcam.py / capture_faces.py need the GUI build, not opencv-python-headless
+matplotlib
+h5py
+joblib
+pillow
+requests               # facenet-pytorch
+tqdm                   # facenet-pytorch
+streamlit>=1.46        # app.py
+kagglehub              # download_data.py

@@ -1,0 +1,14 @@
+lfw_test_clip: 300 frames, 2 scene cuts, model lfw_M2.joblib, tau 0.55, variant full
+
+track   1: Jennifer_Capriati              100 frames  mean p 0.75  same top-1 in 100% of frames
+track   2: Naomi_Watts                    100 frames  mean p 0.97  same top-1 in 100% of frames
+track   3: Jiang_Zemin                    100 frames  mean p 0.95  same top-1 in 100% of frames
+track   4: Paul_Bremer                    100 frames  mean p 0.98  same top-1 in 100% of frames
+track   5: Laura_Bush                     100 frames  mean p 0.91  same top-1 in 100% of frames
+track   6: Vladimir_Putin                 100 frames  mean p 0.99  same top-1 in 100% of frames
+track   7: Unknown                        100 frames  mean p 0.36  same top-1 in 95% of frames
+track   8: Unknown                        100 frames  mean p 0.08  same top-1 in 69% of frames
+track   9: Gray_Davis                      98 frames  mean p 0.62  same top-1 in 100% of frames
+track  10: Kofi_Annan                     100 frames  mean p 0.93  same top-1 in 100% of frames
+track  11: Alvaro_Uribe                   100 frames  mean p 0.98  same top-1 in 100% of frames
+track  12: Unknown                        100 frames  mean p 0.28  same top-1 in 86% of frames

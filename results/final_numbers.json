@@ -1,0 +1,352 @@
+{
+  "dataset": "lfw",
+  "people": 62,
+  "images": 2063,
+  "train_images": 1444,
+  "test_images": 619,
+  "split": "70/30 stratified split of the images",
+  "per_variant": {
+    "V0 full": {
+      "train": 1444,
+      "test": 619,
+      "rule": "keep",
+      "box": null
+    },
+    "V1 upper_half": {
+      "train": 1444,
+      "test": 619,
+      "rule": "keep",
+      "box": [
+        0,
+        0,
+        224,
+        124
+      ]
+    },
+    "V2 lower_half": {
+      "train": 1444,
+      "test": 619,
+      "rule": "keep",
+      "box": [
+        0,
+        124,
+        224,
+        224
+      ]
+    },
+    "V3 eyes_only": {
+      "train": 1444,
+      "test": 619,
+      "rule": "keep",
+      "box": [
+        30,
+        66,
+        194,
+        120
+      ]
+    },
+    "V4 nose_mouth": {
+      "train": 1444,
+      "test": 619,
+      "rule": "keep",
+      "box": [
+        56,
+        108,
+        168,
+        192
+      ]
+    },
+    "V5 mask": {
+      "train": 1444,
+      "test": 619,
+      "rule": "hide",
+      "box": [
+        24,
+        116,
+        200,
+        224
+      ]
+    },
+    "V6 sunglasses": {
+      "train": 1444,
+      "test": 619,
+      "rule": "hide",
+      "box": [
+        44,
+        72,
+        180,
+        116
+      ]
+    }
+  },
+  "train_set_size": {
+    "M0": 1444,
+    "M1": 1444,
+    "M3": 1444,
+    "M2": 10108,
+    "M4": 10108
+  },
+  "one_person": {
+    "name": "Ariel_Sharon",
+    "images": [
+      151,
+      152,
+      153,
+      154
+    ]
+  },
+  "top12_people": {
+    "mask": [
+      "Kofi_Annan",
+      "Bill_Clinton",
+      "Ricardo_Lagos",
+      "Rudolph_Giuliani",
+      "Andre_Agassi",
+      "Ariel_Sharon",
+      "Vladimir_Putin",
+      "Gerhard_Schroeder",
+      "Arnold_Schwarzenegger",
+      "Michael_Bloomberg",
+      "Atal_Bihari_Vajpayee",
+      "Mahmoud_Abbas"
+    ],
+    "sunglasses": [
+      "George_W_Bush",
+      "Tony_Blair",
+      "Tom_Daschle",
+      "Donald_Rumsfeld",
+      "Guillermo_Coria",
+      "Junichiro_Koizumi",
+      "Hans_Blix",
+      "Ariel_Sharon",
+      "Igor_Ivanov",
+      "Silvio_Berlusconi",
+      "Jeremy_Greenstock",
+      "John_Ashcroft"
+    ],
+    "lower_half": [
+      "Serena_Williams",
+      "Tiger_Woods",
+      "Jean_Chretien",
+      "Atal_Bihari_Vajpayee",
+      "Gerhard_Schroeder",
+      "Tony_Blair",
+      "Junichiro_Koizumi",
+      "Donald_Rumsfeld",
+      "Gloria_Macapagal_Arroyo",
+      "Roh_Moo-hyun",
+      "Colin_Powell",
+      "Guillermo_Coria"
+    ],
+    "eyes_only": [
+      "Alejandro_Toledo",
+      "Hugo_Chavez",
+      "John_Ashcroft",
+      "Donald_Rumsfeld",
+      "Vladimir_Putin",
+      "Ariel_Sharon",
+      "Jacques_Chirac",
+      "Arnold_Schwarzenegger",
+      "Guillermo_Coria",
+      "Tiger_Woods",
+      "Jean_Chretien",
+      "Bill_Clinton"
+    ],
+    "nose_mouth": [
+      "Jean_Chretien",
+      "Atal_Bihari_Vajpayee",
+      "Gerhard_Schroeder",
+      "Megawati_Sukarnoputri",
+      "Roh_Moo-hyun",
+      "George_W_Bush",
+      "Ricardo_Lagos",
+      "Gloria_Macapagal_Arroyo",
+      "Guillermo_Coria",
+      "Tony_Blair",
+      "Angelina_Jolie",
+      "Jack_Straw"
+    ],
+    "upper_half": [
+      "Kofi_Annan",
+      "Bill_Clinton",
+      "Ricardo_Lagos",
+      "Tom_Daschle",
+      "George_W_Bush",
+      "David_Beckham",
+      "Jennifer_Capriati",
+      "John_Negroponte",
+      "Hans_Blix",
+      "Michael_Bloomberg",
+      "Vladimir_Putin",
+      "Rudolph_Giuliani"
+    ]
+  },
+  "example": {
+    "file": "data\\lfw_home\\lfw\\Gerhard_Schroeder\\Gerhard_Schroeder_0025.jpg",
+    "true": "Gerhard_Schroeder",
+    "raw_shape": [
+      250,
+      250,
+      3
+    ],
+    "mtcnn_box": [
+      81,
+      62,
+      175,
+      193
+    ],
+    "mtcnn_prob": 1.0,
+    "landmarks": [
+      [
+        101,
+        115
+      ],
+      [
+        144,
+        113
+      ],
+      [
+        118,
+        138
+      ],
+      [
+        105,
+        157
+      ],
+      [
+        145,
+        155
+      ]
+    ],
+    "template": [
+      [
+        82.9000015258789,
+        94.69999694824219
+      ],
+      [
+        139.1999969482422,
+        94.4000015258789
+      ],
+      [
+        112.0,
+        126.80000305175781
+      ],
+      [
+        88.9000015258789,
+        165.39999389648438
+      ],
+      [
+        135.60000610351562,
+        165.10000610351562
+      ]
+    ],
+    "eye_tilt_deg": -2.1,
+    "align_rotation_deg": 2.5,
+    "align_scale": 1.457,
+    "variant": "mask",
+    "feature_dim": 4096,
+    "feature_first8": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      3.258,
+      0.0,
+      0.0
+    ],
+    "top5": {
+      "M1": [
+        [
+          "Arnold_Schwarzenegger",
+          0.16530598748847058
+        ],
+        [
+          "Gerhard_Schroeder",
+          0.14151814247470051
+        ],
+        [
+          "Hugo_Chavez",
+          0.034859895614922705
+        ],
+        [
+          "Junichiro_Koizumi",
+          0.029107686117671318
+        ],
+        [
+          "George_W_Bush",
+          0.02238264292708013
+        ]
+      ],
+      "M2": [
+        [
+          "Gerhard_Schroeder",
+          0.991817366292101
+        ],
+        [
+          "Arnold_Schwarzenegger",
+          0.004850950229145305
+        ],
+        [
+          "John_Ashcroft",
+          0.0003442137512262302
+        ],
+        [
+          "George_Robertson",
+          0.0003124650198508013
+        ],
+        [
+          "Alejandro_Toledo",
+          0.0002653359463695456
+        ]
+      ]
+    }
+  },
+  "accuracy": {
+    "M0": {
+      "full": 56.2,
+      "upper_half": 5.2,
+      "lower_half": 4.7,
+      "eyes_only": 2.1,
+      "nose_mouth": 1.3,
+      "mask": 3.9,
+      "sunglasses": 7.1
+    },
+    "M1": {
+      "full": 99.7,
+      "upper_half": 90.8,
+      "lower_half": 36.7,
+      "eyes_only": 44.4,
+      "nose_mouth": 36.7,
+      "mask": 85.3,
+      "sunglasses": 77.9
+    },
+    "M2": {
+      "full": 99.8,
+      "upper_half": 98.4,
+      "lower_half": 85.8,
+      "eyes_only": 91.6,
+      "nose_mouth": 89.3,
+      "mask": 97.7,
+      "sunglasses": 95.5
+    },
+    "M3": {
+      "full": 99.8,
+      "upper_half": 94.7,
+      "lower_half": 60.9,
+      "eyes_only": 69.1,
+      "nose_mouth": 55.1,
+      "mask": 93.5,
+      "sunglasses": 89.0
+    },
+    "M4": {
+      "full": 99.7,
+      "upper_half": 97.7,
+      "lower_half": 88.5,
+      "eyes_only": 92.6,
+      "nose_mouth": 91.4,
+      "mask": 97.6,
+      "sunglasses": 97.9
+    }
+  }
+}
