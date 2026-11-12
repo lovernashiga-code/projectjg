@@ -13,7 +13,7 @@ import numpy as np
 from facenet_pytorch import MTCNN
 from sklearn.preprocessing import normalize
 
-from backbones import extract, load_backbone
+from backbones import DEVICE, extract, load_backbone
 from common import MODELS, UNKNOWN, align, apply_variant
 
 
@@ -43,7 +43,7 @@ class Recognizer:
         self.clf, self.names = self.bundle["classifier"], self.bundle["names"]
         self.tau = self.bundle["tau"] if tau is None else tau
         self.model, self.prep = load_backbone(self.bundle["backbone"])
-        self.mtcnn = MTCNN(keep_all=True, min_face_size=min_face, device="cpu")
+        self.mtcnn = MTCNN(keep_all=True, min_face_size=min_face, device=DEVICE)
         self.min_detect = min_detect   # MTCNN face probability; drops background false detections
 
     def describe(self):

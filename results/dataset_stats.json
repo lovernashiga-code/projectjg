@@ -1,8 +1,10 @@
 {
+  "dataset": "lfw",
   "n_images": 2063,
   "n_classes": 62,
   "mtcnn_detected": 2063,
   "mtcnn_fallback": 0,
+  "skipped_no_face": 0,
   "per_class": {
     "Alejandro_Toledo": 39,
     "Alvaro_Uribe": 35,
@@ -66,5 +68,6 @@
     "Vicente_Fox": 32,
     "Vladimir_Putin": 49,
     "Winona_Ryder": 24
-  }
+  },
+  "skipped_files": []
 }

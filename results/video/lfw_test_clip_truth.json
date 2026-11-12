@@ -1,0 +1,65 @@
+[
+  {
+    "scene": 1,
+    "position": "left",
+    "true": "Naomi_Watts",
+    "occluder": "none",
+    "file": "data\\lfw_home\\lfw\\Naomi_Watts\\Naomi_Watts_0013.jpg"
+  },
+  {
+    "scene": 1,
+    "position": "middle",
+    "true": "Jennifer_Capriati",
+    "occluder": "mask",
+    "file": "data\\lfw_home\\lfw\\Jennifer_Capriati\\Jennifer_Capriati_0039.jpg"
+  },
+  {
+    "scene": 1,
+    "position": "right",
+    "true": "Jiang_Zemin",
+    "occluder": "glasses",
+    "file": "data\\lfw_home\\lfw\\Jiang_Zemin\\Jiang_Zemin_0010.jpg"
+  },
+  {
+    "scene": 2,
+    "position": "left",
+    "true": "Vladimir_Putin",
+    "occluder": "mask",
+    "file": "data\\lfw_home\\lfw\\Vladimir_Putin\\Vladimir_Putin_0030.jpg"
+  },
+  {
+    "scene": 2,
+    "position": "middle",
+    "true": "Laura_Bush",
+    "occluder": "hand",
+    "file": "data\\lfw_home\\lfw\\Laura_Bush\\Laura_Bush_0028.jpg"
+  },
+  {
+    "scene": 2,
+    "position": "right",
+    "true": "Paul_Bremer",
+    "occluder": "none",
+    "file": "data\\lfw_home\\lfw\\Paul_Bremer\\Paul_Bremer_0002.jpg"
+  },
+  {
+    "scene": 3,
+    "position": "left",
+    "true": "Gray_Davis",
+    "occluder": "glasses",
+    "file": "data\\lfw_home\\lfw\\Gray_Davis\\Gray_Davis_0003.jpg"
+  },
+  {
+    "scene": 3,
+    "position": "middle",
+    "true": "Alvaro_Uribe",
+    "occluder": "mask",
+    "file": "data\\lfw_home\\lfw\\Alvaro_Uribe\\Alvaro_Uribe_0015.jpg"
+  },
+  {
+    "scene": 3,
+    "position": "right",
+    "true": "Kofi_Annan",
+    "occluder": "mask",
+    "file": "data\\lfw_home\\lfw\\Kofi_Annan\\Kofi_Annan_0001.jpg"
+  }
+]

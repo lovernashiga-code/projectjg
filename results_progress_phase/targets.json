@@ -1,0 +1,30 @@
+{
+  "T1": {
+    "desc": "Accuracy on full faces, M2",
+    "target": 0.95,
+    "value": 0.9984,
+    "pass": true
+  },
+  "T2": {
+    "desc": "Accuracy with mask / sunglasses, M2",
+    "target": 0.85,
+    "value": {
+      "mask": 0.9725,
+      "sunglasses": 0.9483
+    },
+    "pass": true
+  },
+  "T3": {
+    "desc": "Acc(M2) - Acc(M1) on the variant where M1 is worst",
+    "target": 0.1,
+    "M1_worst_variant": [
+      "lower_half",
+      "nose_mouth"
+    ],
+    "value": {
+      "lower_half": 0.4847,
+      "nose_mouth": 0.5267
+    },
+    "pass": true
+  }
+}

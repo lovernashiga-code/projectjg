@@ -56,6 +56,7 @@ python step1_detect_align.py                # pick people (LFW: >= 20 images, ma
 python step2_extract_features.py            # 7 variants x {VGG-Face, FaceNet} features      -> features_*.npz
 python step3_train_evaluate.py              # train M0-M4, test every variant, check T1-T3     -> metrics.json, models/
 python step4_figures.py                     # figures + RESULTS.md
+python step5_final_figures.py               # final-phase figures: confusion matrix of every experiment, real examples
 
 python step3_train_evaluate.py --seeds 0 1 2 3 4    # optional: mean ± std over 5 more random 70/30 splits
 
@@ -107,6 +108,7 @@ cd src
 python predict.py photo.jpg                          # every face: name / "Unknown", p, top-5; annotated copy in results/predict/
 python predict.py photos/ --variant mask --tau 0.6   # simulate a mask, stricter threshold
 python webcam.py                                     # live: v = next occlusion, +/- = tau, s = save, q = quit
+python video.py clip.mp4                             # video file -> annotated mp4: box + arrow + name + p per face
 cd .. && streamlit run app.py                        # web demo: upload or camera, choose model, occlusion and tau
 ```
 
@@ -127,6 +129,24 @@ python step3_train_evaluate.py --dataset lfw+custom --fit-all
 python webcam.py --model "../models/lfw+custom_M2+aug.joblib"
 ```
 
+**From video clips instead of a webcam:** `capture_faces.py --video` takes the enrolment frames from a clip
+(one face in view, spread over the whole clip). Record each member twice (another day or light), then test the
+system on a separate clip in which members wear masks or glasses:
+
+```bash
+python capture_faces.py --name Worasak --video worasak_1.mp4 --session s1 --count 40
+python capture_faces.py --name Worasak --video worasak_2.mp4 --session s2 --count 40
+# ... the other members, plus a few strangers with --stranger, then step 1-3 as above with --dataset lfw+custom
+python video.py group_test.mp4 --model "../models/lfw+custom_M2+aug.joblib"   # -> results/video/group_test_annotated.mp4
+```
+
+`video.py` links each face from frame to frame by box overlap and shows the p-weighted vote of its last 15
+frames, so one blurred frame does not flip the name. Without `--tau` it uses the model's stranger threshold (the τ at
+which step 3 measured ≤ 5 % of strangers getting a name), because a video of the group also shows outsiders; it also writes `<clip>_tracks.csv` and `<clip>_summary.txt`.
+To check it before the members' clips exist: `python make_test_clip.py` builds a clip from LFW *test* photos with
+masks, glasses and a hand drawn on the real photo, then `python video.py ../results/video/lfw_test_clip.mp4`
+and `python check_test_clip.py` score it.
+
 Use plain English folder names: they are the labels OpenCV draws. With only 5 members the Softmax always picks
 one of the 5, so a stranger gets a member's name unless τ is high enough: use the τ step 3 prints
 (`predict.py`/`webcam.py --tau`; the app shows it in the sidebar).
@@ -137,19 +157,18 @@ Accuracy (%) from [results/metrics.json](results/metrics.json):
 
 | Test variant | M0 | M1 | M2 | M3 | M4 |
 |---|---:|---:|---:|---:|---:|
-| full | 59.5* | 99.7 | 99.8 | 99.8 | 99.7 |
-| upper_half | 6.9* | 90.8 | 98.4 | 94.7 | 97.7 |
-| lower_half | 4.0* | 36.7 | 85.1 | 60.9 | 88.7 |
-| eyes_only | 2.4* | 44.6 | 91.1 | 69.1 | 93.2 |
-| nose_mouth | 1.1* | 36.7 | 89.3 | 55.4 | 91.6 |
-| mask | 5.7* | 85.3 | 97.3 | 93.5 | 97.7 |
-| sunglasses | 6.6* | 77.9 | 94.8 | 89.0 | 97.7 |
+| full | 56.2 | 99.7 | 99.8 | 99.8 | 99.7 |
+| upper_half | 5.2 | 90.8 | 98.4 | 94.7 | 97.7 |
+| lower_half | 4.7 | 36.7 | 85.8 | 60.9 | 88.5 |
+| eyes_only | 2.1 | 44.4 | 91.6 | 69.1 | 92.6 |
+| nose_mouth | 1.3 | 36.7 | 89.3 | 55.1 | 91.4 |
+| mask | 3.9 | 85.3 | 97.7 | 93.5 | 97.6 |
+| sunglasses | 7.1 | 77.9 | 95.5 | 89.0 | 97.9 |
 
-T1 99.8 % ≥ 95 · T2 97.3 / 94.8 % ≥ 85 · T3 nose_mouth 36.7 → 89.3 (+52.7) and lower_half 36.7 → 85.1 (+48.5) ≥ +10.
+T1 99.8 % ≥ 95 · T2 97.7 / 95.5 % ≥ 85 · T3 nose_mouth 36.7 → 89.3 (+52.7) and lower_half 36.7 → 85.8 (+49.1) ≥ +10.
 
-\* M0 was scored with the argmax of SVC's Platt-scaled `predict_proba`, which can disagree with the SVM's
-own prediction. Step 3 now scores M0 with the SVM decision values (argmax = `predict`), so re-running
-step 3 will change the M0 column; M1-M4 are unaffected.
+Re-run for the final presentation (GPU, seed 42). M0 is now scored with the SVM's own decision values; M1-M4
+moved by at most 0.7 points from the progress-phase run (kept in `results_progress_phase/`).
 
 ## Layout
 
@@ -162,7 +181,11 @@ src/step1_detect_align.py     pick identities, MTCNN detect + align -> faces.npz
 src/step2_extract_features.py build 7 variants, extract features -> features_*.npz
 src/step3_train_evaluate.py   train M0-M4, evaluate per variant, save models -> metrics.json, models/
 src/step4_figures.py          figures and RESULTS.md for the slides -> results/figures/*.png
+src/step5_final_figures.py    confusion matrix of every experiment, V0-V6 examples, a real worked example
 src/recognizer.py             detect -> align -> features -> Softmax -> name or "Unknown" for new images
+src/video.py                  recognise every face in a video: tracking, label vote, box + arrow + name
+src/make_test_clip.py         test clip from LFW test photos with drawn masks / glasses (checks video.py)
+src/check_test_clip.py        score video.py on that clip
 src/predict.py                recognise faces in photos
 src/webcam.py                 live recognition from a webcam
 src/capture_faces.py          record webcam photos for the custom dataset
@@ -378,6 +401,10 @@ python webcam.py --model "../models/lfw+custom_M2+aug.joblib"
 - ตั้งชื่อเป็นภาษาอังกฤษไม่มีเว้นวรรค เพราะชื่อโฟลเดอร์คือชื่อที่ OpenCV วาดบนหน้าจอ (วาดภาษาไทยไม่ได้)
 - `capture_faces.py` กด SPACE เพื่อเริ่มบันทึก และบันทึกเฉพาะตอนที่เห็นใบหน้า **หนึ่งใบหน้า** อย่างน้อยทุก 0.5 วินาที (`--interval`)
   หยุดเองเมื่อครบ 30 ภาพ (ปรับด้วย `--count 40`) ขยับหน้าเล็กน้อย เข้าใกล้/ถอยห่างระหว่างถ่ายเพื่อให้ได้มุมที่หลากหลาย
+- **ใช้คลิปวิดีโอแทนเว็บแคม:** `python capture_faces.py --name Worasak --video worasak_1.mp4 --session s1 --count 40`
+  ดึงเฟรมที่เห็นหน้าเดียวกระจายทั้งคลิป ทำ 2 คลิปต่อคน (คนละวัน/แสง) แล้วทดสอบด้วยคลิปที่สมาชิกใส่หน้ากาก/แว่น:
+  `python video.py group_test.mp4 --model "../models/lfw+custom_M2+aug.joblib"` ได้ไฟล์ `results/video/group_test_annotated.mp4`
+  ที่มีกรอบ ลูกศรชี้ ชื่อ และ % ความมั่นใจของทุกคน
 - `--fit-all` เทรนโมเดลที่บันทึกใหม่ด้วยทุกภาพของทุกคนเพื่อใช้ในเดโมสด ส่วนตัวเลขความแม่นยำที่รายงานยังมาจากโมเดลที่เทรนด้วยชุดเทรน
   และทดสอบกับชุดทดสอบที่แยกไว้ อย่านำไฟล์โมเดลที่ได้จาก `--fit-all` ไปวัดความแม่นยำกับภาพชุดทดสอบ เพราะมันเคยเห็นภาพเหล่านั้นแล้ว
 
@@ -387,28 +414,25 @@ Accuracy (%) จาก [`results/metrics.json`](results/metrics.json):
 
 | รูปแบบที่ใช้ทดสอบ | M0 | M1 | M2 | M3 | M4 |
 |---|---:|---:|---:|---:|---:|
-| ใบหน้าเต็ม | 59.5* | 99.7 | 99.8 | 99.8 | 99.7 |
-| ครึ่งบน | 6.9* | 90.8 | 98.4 | 94.7 | 97.7 |
-| ครึ่งล่าง | 4.0* | 36.7 | 85.1 | 60.9 | 88.7 |
-| เฉพาะดวงตา | 2.4* | 44.6 | 91.1 | 69.1 | 93.2 |
-| เฉพาะจมูก+ปาก | 1.1* | 36.7 | 89.3 | 55.4 | 91.6 |
-| สวมหน้ากากอนามัย | 5.7* | 85.3 | 97.3 | 93.5 | 97.7 |
-| สวมแว่นกันแดด | 6.6* | 77.9 | 94.8 | 89.0 | 97.7 |
+| ใบหน้าเต็ม | 56.2 | 99.7 | 99.8 | 99.8 | 99.7 |
+| ครึ่งบน | 5.2 | 90.8 | 98.4 | 94.7 | 97.7 |
+| ครึ่งล่าง | 4.7 | 36.7 | 85.8 | 60.9 | 88.5 |
+| เฉพาะดวงตา | 2.1 | 44.4 | 91.6 | 69.1 | 92.6 |
+| เฉพาะจมูก+ปาก | 1.3 | 36.7 | 89.3 | 55.1 | 91.4 |
+| สวมหน้ากากอนามัย | 3.9 | 85.3 | 97.7 | 93.5 | 97.6 |
+| สวมแว่นกันแดด | 7.1 | 77.9 | 95.5 | 89.0 | 97.9 |
 
 - **T1** ผ่าน: M2 บนใบหน้าเต็มได้ 99.8 % (เป้า ≥ 95 %)
-- **T2** ผ่าน: M2 สวมหน้ากาก 97.3 % และสวมแว่น 94.8 % (เป้า ≥ 85 %)
+- **T2** ผ่าน: M2 สวมหน้ากาก 97.7 % และสวมแว่น 95.5 % (เป้า ≥ 85 %)
 - **T3** ผ่าน: M1 ได้ต่ำสุด 36.7 % เท่ากันทั้ง "ครึ่งล่าง" และ "เฉพาะจมูก+ปาก" เมื่อเทรนเพิ่มด้วยภาพบางส่วน (M2) ดีขึ้น
-  +48.5 และ +52.7 จุดตามลำดับ (เป้า ≥ +10 จุด)
+  +49.1 และ +52.7 จุดตามลำดับ (เป้า ≥ +10 จุด)
 - การเทรนด้วยภาพบางส่วนช่วยมาก: M1 → M2 และ M3 → M4 ดีขึ้นทุกรูปแบบที่ถูกบดบัง
 - เมื่อเทรนด้วยภาพเต็มอย่างเดียว FaceNet (M3) ทนต่อการบดบังกว่า VGG-Face (M1) ทุกรูปแบบ ส่วนเมื่อเทรนด้วยภาพบางส่วนแล้ว
-  M4 สูงกว่า M2 ใน 5 จาก 6 รูปแบบที่ถูกบดบัง (M2 สูงกว่าเฉพาะ "ครึ่งบน")
+  M4 สูงกว่า M2 ใน 4 จาก 6 รูปแบบที่ถูกบดบัง (M2 สูงกว่าใน "ครึ่งบน" และ "หน้ากาก")
 
-\* **ตัวเลขของ M0 (Eigenfaces + SVM) ในตารางนี้วัดด้วยวิธีเดิมที่ไม่ตรงกับคำทำนายจริงของ SVM** (ใช้ argmax ของ `predict_proba`
-แบบ Platt scaling ซึ่งอาจขัดกับ `predict` ของ SVM เอง) ตอนนี้ step 3 แก้เป็นวัดด้วยค่า decision ของ SVM แล้ว ดังนั้นเมื่อรัน step 3
-ใหม่ **คอลัมน์ M0 จะเปลี่ยน** ส่วน M1–M4 ไม่เปลี่ยน
-
-ตารางนี้มาจากการรันครั้งแรกกับ LFW (ตรงกับสไลด์หน้า 14) ส่วนที่เพิ่มภายหลัง (ทดสอบกับคนแปลกหน้า, Data Augmentation, FEI)
-ให้รันตามคำสั่งด้านบนแล้วดูผลใน `results/RESULTS.md` และ `results/figures/`
+ตารางนี้มาจากการรันใหม่สำหรับ Final (GPU, seed 42) ตรงกับสไลด์ `slides/Partial_Face_Recognition_Final.pptx` ตอนนี้ M0 วัดด้วยค่า
+decision ของ SVM เอง ส่วน M1–M4 ต่างจากรอบ Progress ไม่เกิน 0.7 จุด (ผลรอบ Progress เก็บไว้ใน `results_progress_phase/`)
+ผลอื่น (คนแปลกหน้า, Data Augmentation, FEI, วิดีโอ) อยู่ใน `results/RESULTS.md`, `results/fei/`, `results/video/` และ `results/figures/final/`
 
 ### โครงสร้างไฟล์
 
@@ -422,6 +446,9 @@ Accuracy (%) จาก [`results/metrics.json`](results/metrics.json):
 | `src/step2_extract_features.py` | สร้างภาพบดบัง, สกัด feature (และสำเนา augmentation) |
 | `src/step3_train_evaluate.py` | เทรนและทดสอบ M0–M4, ตรวจ T1–T3, วัดผลกับคนแปลกหน้า, บันทึกโมเดล |
 | `src/step4_figures.py` | กราฟและ `RESULTS.md` สำหรับสไลด์ |
+| `src/step5_final_figures.py` | confusion matrix ของทุกการทดลอง (5 โมเดล × 7 รูปแบบ), ภาพจริง V0–V6, ตัวอย่างจริง 1 ภาพผ่านทุกขั้น |
+| `src/video.py` | รับไฟล์วิดีโอ ระบุชื่อทุกใบหน้า วาดกรอบ + ลูกศร + ชื่อ + ความมั่นใจ (ติดตามหน้าข้ามเฟรมและโหวตชื่อ) |
+| `src/make_test_clip.py`, `src/check_test_clip.py` | สร้างคลิปทดสอบจากภาพ Test ของ LFW (วาดหน้ากาก/แว่น/มือบัง) และให้คะแนน `video.py` |
 | `src/recognizer.py` | ตรวจจับ → จัดตำแหน่ง → สกัด feature → Softmax → ชื่อหรือ "Unknown" สำหรับภาพใหม่ |
 | `src/predict.py` | ทายใบหน้าในรูปหรือโฟลเดอร์รูป |
 | `src/webcam.py` | ทายสดจากเว็บแคม |

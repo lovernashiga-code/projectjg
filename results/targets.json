@@ -2,15 +2,15 @@
   "T1": {
     "desc": "Accuracy on full faces, M2",
     "target": 0.95,
-    "value": 0.9984,
+    "value": 0.9983844911147012,
     "pass": true
   },
   "T2": {
     "desc": "Accuracy with mask / sunglasses, M2",
     "target": 0.85,
     "value": {
-      "mask": 0.9725,
-      "sunglasses": 0.9483
+      "mask": 0.9773828756058158,
+      "sunglasses": 0.9547657512116317
     },
     "pass": true
   },
@@ -22,8 +22,8 @@
       "nose_mouth"
     ],
     "value": {
-      "lower_half": 0.4847,
-      "nose_mouth": 0.5267
+      "lower_half": 0.49111470113085626,
+      "nose_mouth": 0.5266558966074313
     },
     "pass": true
   }
