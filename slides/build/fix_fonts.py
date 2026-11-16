@@ -3,7 +3,7 @@ Leelawadee UI instead of Office's default Angsana New / Cordia New."""
 import re, sys, zipfile, shutil, os
 src = sys.argv[1]
 tmp = src + ".tmp"
-FONT = "Leelawadee UI"
+FONT = sys.argv[2] if len(sys.argv) > 2 else "Leelawadee UI"
 with zipfile.ZipFile(src) as zi, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zo:
     for item in zi.infolist():
         data = zi.read(item.filename)

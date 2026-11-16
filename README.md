@@ -49,6 +49,7 @@ custom person recorded in two or more sessions keeps one whole session as test d
 **Strangers (open-set test).** Step 1 also builds `unknown.npz`: up to 500 LFW people who are *not* classes of
 the dataset (one photo each) plus every photo in `data/unknown/`. They are never trained on; step 3 counts how
 many of them still get a name instead of "Unknown" at each τ and reports the τ that keeps this at ≤ 5 %.
+That τ is chosen on the LFW strangers only; the photos from `data/unknown/` are a separate test ("own strangers").
 
 ```bash
 cd src
@@ -359,6 +360,8 @@ python step3_train_evaluate.py --dataset fei && python step4_figures.py --datase
 
 - step 1 สร้าง `unknown.npz` จากคนใน LFW ที่ **ไม่ได้เป็นคลาสของชุดนั้น** สูงสุด 500 คน (คนละ 1 ภาพ) รวมกับภาพทุกภาพใน
   `data/unknown/` คนเหล่านี้ไม่ถูกใช้เทรนเลย
+- τ ถูกเลือกจากคนแปลกหน้า LFW เท่านั้น ส่วนภาพใน `data/unknown/` (คนแปลกหน้าที่กลุ่มถ่ายเอง) ใช้ทดสอบอย่างเดียว
+  step 3 พิมพ์ผลของกลุ่มนี้แยกเป็น "own strangers"
 - step 3 นับว่าที่ τ แต่ละค่า มีคนแปลกหน้ากี่ % ที่ยังถูกตอบเป็นชื่อ (แทนที่จะเป็น "Unknown") และบอกค่า τ ที่ทำให้
   ตัวเลขนี้ **ไม่เกิน 5 %** ผลอยู่ใน `open_set.json`, กราฟ `open_set_M2.png` และตารางใน `RESULTS.md`
 - ค่า τ ที่แนะนำจะถูกเก็บไว้ในไฟล์โมเดล `predict.py` และแอปจะแสดงให้เห็น ปรับใช้ได้ด้วย `--tau` หรือแถบเลื่อนในแอป

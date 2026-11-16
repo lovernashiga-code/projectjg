@@ -27,6 +27,24 @@ const feiStats = has(path.join(FEI, "dataset_stats.json")) ? rd(path.join(FEI, "
 const VID = path.join(R, "video");
 const video = has(path.join(VID, "video_check.json")) ? rd(path.join(VID, "video_check.json")) : null;
 const videoM1 = has(path.join(VID, "M1", "video_check.json")) ? rd(path.join(VID, "M1", "video_check.json")) : null;
+const CUSTD = path.join(R, "lfw+custom");
+const CUST = has(path.join(CUSTD, "operating_point.json")) && has(path.join(CUSTD, "video_scores.json")) ? (() => {
+  const st = rd(path.join(CUSTD, "dataset_stats.json"));
+  const sessCount = {};
+  for (const [n, ss] of Object.entries(st.sessions_per_class || {})) {
+    sessCount[n] = {};
+    for (const se of ss) {
+      const dir = path.join(PROJ, "data", "custom", n, se);
+      if (se && has(dir)) sessCount[n][se] = fs.readdirSync(dir).filter((f) => /\.(jpg|png)$/i.test(f)).length;
+    }
+  }
+  const wdir = path.join(PROJ, "data", "unknown", "Worasak", "s1");
+  return { stats: st, sessCount, op: rd(path.join(CUSTD, "operating_point.json")), acc: rd(path.join(CUSTD, "members_accuracy.json")),
+    video: rd(path.join(CUSTD, "video_scores.json")), fig: path.join(CUSTD, "figures", "final"), demo: path.join(CUSTD, "figures", "demo"),
+    raw: has(path.join(CUSTD, "video_raw.json")) ? rd(path.join(CUSTD, "video_raw.json")) : null,
+    frames: has(path.join(CUSTD, "figures", "demo", "demo_frames.json")) ? rd(path.join(CUSTD, "figures", "demo", "demo_frames.json")) : {},
+    worasakN: has(wdir) ? fs.readdirSync(wdir).length : 0, videoFile: path.join(VID, "members_M4", "group_1_annotated.mp4") };
+})() : null;
 
 const VARS = ["full", "upper_half", "lower_half", "eyes_only", "nose_mouth", "mask", "sunglasses"];
 const VTH = { full: "เต็ม", upper_half: "ครึ่งบน", lower_half: "ครึ่งล่าง", eyes_only: "ตา", nose_mouth: "จมูก+ปาก",
@@ -171,6 +189,7 @@ section("Intro");
     ["นำผลจริงของการปรับรูปมาแสดง: คน 1 คน ปิดหน้า / เห็นบางส่วน", "ภาพจริงของคนเดียวกันใน V0–V6 พร้อมพิกัดกล่องจากโค้ด", pg("person")],
     ["v0–v6 ชุดข้อมูลเป็นอย่างไร", "ตัวอย่างชุดทดสอบ V0–V6 จริง 8 คน + จำนวนภาพ Train / Test ทุกชุด", pg("vdata")],
     ["มีแต่ภาพแนวคิด ควรแสดงภาพจริงเพิ่ม", "ตัวอย่างจริง 1 ภาพผ่านทุกขั้น (ตัวเลขจริง) + ภาพที่โมเดลทายถูก/ผิด + วิดีโอ", pg("example", "real")],
+    ["Input เป็นวิดีโอสมาชิกที่ถูกบัง", "ลงทะเบียนสมาชิกจากคลิป → confusion matrix ของสมาชิก → วิดีโอที่มีกรอบ ลูกศร ชื่อ + คนแปลกหน้า", pg("members")],
     ["ไม่ได้อธิบายโค้ด", "อธิบายโค้ด 4 หน้า: โครงสร้าง, Align/Occlusion, Train/Split, Recognizer + วิดีโอ", pg("code")],
   ];
   const x0 = MX, y0 = 1.75, cw = [4.3, 6.0, 1.83];
@@ -180,7 +199,7 @@ section("Intro");
     { text: r[0], options: { fontSize: 13.5, color: HEX.ink } },
     { text: r[1], options: { fontSize: 13.5, color: HEX.ink, bold: true } },
     { text: r[2], options: { fontSize: 12.5, color: HEX.blue, bold: true } }]));
-  s.addTable(tbl, { x: x0, y: y0, w: cw.reduce((a, b) => a + b), colW: cw, rowH: [0.42, 0.85, 0.85, 0.85, 0.85, 0.85],
+  s.addTable(tbl, { x: x0, y: y0, w: cw.reduce((a, b) => a + b), colW: cw, rowH: [0.42, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75],
     border: { type: "solid", pt: 0.75, color: HEX.line }, fill: { color: HEX.card }, valign: "middle", margin: [4, 8, 4, 8] });
 }
 
@@ -719,31 +738,141 @@ if (video) { // 29 video results
     { x: 4.85, y: 6.3, w: 7.88, h: 0.5, fontSize: 11, color: HEX.muted });
 }
 
-{ // 30 members pending
-  const s = content("08 · CUSTOM DATASET (สมาชิกกลุ่ม)", "ขั้นตอนใช้กับสมาชิก 5 คน", " จากคลิปวิดีโอ");
-  codeBlock(s, `# 1) ลงทะเบียน: คลิปหน้าเต็มของแต่ละคน 2 คลิป (คนละแสง/วัน)
-python capture_faces.py --name Worasak --video worasak_1.mp4 --session s1 --count 40
-python capture_faces.py --name Worasak --video worasak_2.mp4 --session s2 --count 40
-python capture_faces.py --name Stranger1 --video friend.mp4 --stranger
+if (!CUST) { // 30 members pending (no member run yet)
+  const s = content("08 · CUSTOM DATASET (สมาชิกกลุ่ม)", "ขั้นตอนใช้กับสมาชิก", " จากคลิปวิดีโอ");
+  text(s, "ยังไม่มีผลของสมาชิก: รัน capture_faces.py --video, step1–5 --dataset lfw+custom และ video.py", { x: MX, y: 1.8, w: 11, h: 0.6, fontSize: 15 });
+} else {
+  const op = CUST.op, ma = CUST.acc, vs = CUST.video;
+  const MEMS = ["Krit", "Rapepong", "Threeraphat"];
+  const nSes = (n, ses) => (CUST.sessCount[n] ? CUST.sessCount[n][ses] : 0);
 
-# 2) เทรน (LFW + สมาชิก) แล้ววัดผล: confusion matrix 5 คน จาก session ที่ไม่เคยเห็น
-python step1_detect_align.py --dataset lfw+custom
-python step2_extract_features.py --dataset lfw+custom --augment 2
-python step3_train_evaluate.py --dataset lfw+custom --fit-all
-python step4_figures.py --dataset lfw+custom
-python step5_final_figures.py --dataset lfw+custom
+  { // 30 member data
+    const s = content("08 · สมาชิกกลุ่ม (ข้อมูลจริง)", "ข้อมูลจริงของกลุ่ม:", " คลิปลงทะเบียน + คนแปลกหน้า");
+    mark("members");
+    img(s, path.join(CUST.demo, "members_enrol.png"), MX, 1.55, 8.1, 3.5, "left");
+    const tbl = [["คน", "บทบาท", "session (เฟรม)", "รวม"].map((h) => ({ text: h, options: { bold: true, color: HEX.muted, fill: { color: HEX.bg } } }))];
+    MEMS.forEach((n) => {
+      const ss = Object.entries(CUST.sessCount[n] || {}).sort();
+      tbl.push([{ text: n, options: { bold: true } }, "สมาชิก (เทรน)", ss.map(([k, v]) => `${k} ${v}`).join(" · "), `${ss.reduce((a, [, v]) => a + v, 0)} เฟรม`]);
+    });
+    tbl.push([{ text: "Worasak", options: { bold: true, color: HEX.red } }, "คนแปลกหน้า", { text: "ไม่ใช้เทรน", options: { color: HEX.red } }, `${CUST.worasakN} เฟรม`]);
+    s.addTable(tbl, { x: MX, y: 5.2, w: 8.1, colW: [1.6, 1.8, 3.3, 1.4], rowH: 0.3, fontSize: 11.5, color: HEX.ink,
+      border: { type: "solid", pt: 0.5, color: HEX.line }, fill: { color: HEX.card }, margin: [1, 6, 1, 6] });
+    card(s, 9.0, 1.65, 3.73, 5.1);
+    text(s, "ทำอย่างไร", { x: 9.2, y: 1.8, w: 3.3, h: 0.35, fontSize: 13.5, bold: true });
+    text(s, [
+      { text: "สมาชิกคนละ 2 คลิปหน้าเต็ม (ผนังขาว / ห้องเรียน) → capture_faces.py --video ดึงเฟรมที่มีหน้าเดียว", options: { bullet: true, breakLine: true } },
+      ...(Object.keys(CUST.sessCount.Krit || {}).length > 2 ? [{ text: "Krit ใส่แว่นในคลิปทดสอบ จึงลงทะเบียนเพิ่ม 2 คลิปแบบใส่แว่น (s3, s4)", options: { bullet: true, breakLine: true } }] : []),
+      { text: "เทรน LFW 62 คน + สมาชิก 3 คน = 65 คลาส (pipeline เดิม V0–V6)", options: { bullet: true, breakLine: true } },
+      { text: "ชุด Test ของสมาชิก = session ที่สุ่มกันไว้ 1 session ต่อคน โมเดลไม่เคยเห็น", options: { bullet: true, breakLine: true } },
+      { text: "Worasak เล่นเป็นคนแปลกหน้า: ไม่อยู่ในการเทรน และไม่ได้ใช้เลือก τ ใช้ทดสอบการตอบ Unknown อย่างเดียว", options: { bullet: true, breakLine: true } },
+      { text: "คลิปทดสอบ 5 คลิป (หน้ากาก มือปิด แว่น) ไม่ใช้เทรน", options: { bullet: true, breakLine: true } },
+      { text: " ", options: { breakLine: true, fontSize: 5 } },
+      { text: "อนุวัฒน์ไม่ได้อยู่ในวิดีโอ จึงมีสมาชิก 3 คน · ถ่ายวันเดียวกัน ผลนี้เป็นการทดสอบระดับเดโม ไม่ใช่ benchmark", options: { color: HEX.muted } }],
+      { x: 9.2, y: 2.2, w: 3.35, h: 4.45, fontSize: 11.5, paraSpaceAfter: 3 });
+  }
 
-# 3) คลิปทดสอบ (ใส่หน้ากาก/แว่น) -> mp4 ที่มีกรอบ ลูกศร ชื่อ
-python video.py group_test.mp4 --model "../models/lfw+custom_M2+aug.joblib"`, MX, 1.65, 8.1, 5.1, 11);
-  card(s, 8.95, 1.65, 3.78, 5.1, "FFF4EC", HEX.orange);
-  tag(s, "รอข้อมูลสมาชิก", 9.2, 1.9, HEX.orange, 1.55);
-  text(s, [{ text: "ช่องนี้สำหรับผลจริงของกลุ่ม", options: { bold: true, breakLine: true } },
-    { text: "Confusion matrix ของสมาชิก 5 คน + คอลัมน์ \"LFW คนอื่น\" (members_confusion_M2+aug.png ที่ results/lfw+custom/figures/final/)", options: { bullet: true, breakLine: true } },
-    { text: "ภาพหน้าจอจากคลิป annotated.mp4", options: { bullet: true, breakLine: true } },
-    { text: "อัตรา Unknown ของคนนอกกลุ่ม (video.py ใช้ τ ที่ให้คนแปลกหน้าผ่าน ≤ 5% อัตโนมัติ)", options: { bullet: true, breakLine: true } },
-    { text: " ", options: { breakLine: true, fontSize: 6 } },
-    { text: "ใช้ session ที่ 2 เป็นชุด Test อัตโนมัติ เพราะเฟรมจากคลิปเดียวกันเกือบซ้ำกัน", options: { color: HEX.muted } }],
-    { x: 9.2, y: 2.4, w: 3.3, h: 4.2, fontSize: 12.5, paraSpaceAfter: 4 });
+  { // 31 member confusion
+    const s = content("08 · สมาชิกกลุ่ม — CONFUSION MATRIX", "ผลจริงของสมาชิก:", " session ที่โมเดลไม่เคยเห็น");
+    mark("cm"); mark("members");
+    img(s, path.join(CUST.fig, "members_confusion_M4.png"), MX, 1.5, W - 2 * MX, 2.6);
+    img(s, path.join(CUST.fig, "members_confusion_M2.png"), MX, 4.1, W - 2 * MX, 2.6);
+    text(s, `แถว = คนจริง · คอลัมน์ = ระบบทาย (argmax ไม่ใช้ τ) · "LFW คนอื่น" = ทายเป็นคนใน LFW · บน M4 FaceNet: เต็ม ${f1(100 * ma.M4.full)}% หน้ากาก ${f1(100 * ma.M4.mask)}% แว่น ${f1(100 * ma.M4.sunglasses)}% · ล่าง M2 VGG-Face: ${f1(100 * ma.M2.full)} / ${f1(100 * ma.M2.mask)} / ${f1(100 * ma.M2.sunglasses)}%`,
+      { x: MX, y: 6.72, w: W - 2 * MX, h: 0.3, fontSize: 10.5, color: HEX.muted });
+  }
+
+  { // 32 operating point
+    const s = content("08 · สมาชิกกลุ่ม — คนแปลกหน้า", "τ กับคนแปลกหน้า:", " ข้อแลกเปลี่ยนที่เจอจริง");
+    mark("members");
+    const H = (t) => ({ text: t, options: { bold: true, color: HEX.muted, fill: { color: HEX.bg }, align: "center" } });
+    const tbl = [[H("ทดสอบ"), { text: `M2 VGG-Face · τ ${f1(op.M2.tau, 2)}`, options: { colspan: 3, bold: true, color: HEX.ink, fill: { color: HEX.bg }, align: "center" } },
+      { text: `M4 FaceNet · τ ${f1(op.M4.tau, 2)}`, options: { colspan: 3, bold: true, color: HEX.blue, fill: { color: HEX.bg }, align: "center" } }],
+      [H(""), H("สมาชิกถูก + ตอบชื่อ"), H("สมาชิก → Unknown"), H("Worasak ถูกเรียกเป็นสมาชิก"), H("สมาชิกถูก + ตอบชื่อ"), H("สมาชิก → Unknown"), H("Worasak ถูกเรียกเป็นสมาชิก")]];
+    [["full", "V0 เต็ม"], ["mask", "V5 หน้ากาก"], ["sunglasses", "V6 แว่นกันแดด"]].forEach(([v, lbl]) => {
+      const c = (m, k, good) => ({ text: `${f1(100 * op[m][v][k])}%`, options: { align: "center", bold: true, color: good ? HEX.green : HEX.red } });
+      tbl.push([{ text: lbl, options: { bold: true } }, c("M2", "members_right_at_tau", true), c("M2", "members_unknown_at_tau", false), c("M2", "stranger_as_member_at_tau", false),
+        c("M4", "members_right_at_tau", true), c("M4", "members_unknown_at_tau", false), c("M4", "stranger_as_member_at_tau", false)]);
+    });
+    s.addTable(tbl, { x: MX, y: 1.65, w: W - 2 * MX, colW: [1.63, 1.75, 1.75, 2.0, 1.75, 1.75, 1.5], rowH: [0.38, 0.55, 0.45, 0.45, 0.45], fontSize: 11.5, color: HEX.ink,
+      border: { type: "solid", pt: 0.5, color: HEX.line }, fill: { color: HEX.card }, margin: [2, 5, 2, 5], valign: "middle" });
+    card(s, MX, 4.33, 6.0, 2.42, HEX.blueSoft, HEX.blueSoft);
+    text(s, `ตัวเลข "สมาชิก" = session ที่กันไว้ (classifier ที่เทรนจาก train split) · ตัวเลข Worasak / LFW = โมเดลที่ใช้เดโม (fit-all) ซึ่งไม่เคยเห็นคนแปลกหน้าทั้งคู่`,
+      { x: MX, y: 3.97, w: W - 2 * MX, h: 0.28, fontSize: 10.5, color: HEX.muted });
+    text(s, [{ text: `τ = ค่าต่ำสุดที่คนแปลกหน้า LFW 500 คนถูกเรียกชื่อ ≤ 5% (M2 ${f1(op.M2.tau, 2)}, M4 ${f1(op.M4.tau, 2)}) · Worasak ไม่ได้ใช้เลือก τ ใช้ทดสอบอย่างเดียว`, options: { bold: true, breakLine: true } },
+      { text: `คนแปลกหน้า LFW 500 คนเป็นคนดังต่างวัย ต่างเชื้อชาติ จึงแยกง่าย: ถูกเรียกชื่อเพียง ${f1(100 * op.M4.full.lfw_strangers_named_at_tau)}% (M4, หน้าเต็ม)`, options: { breakLine: true } },
+      { text: `แต่ Worasak เป็นเพื่อนร่วมชั้น วัยเดียวกัน ใส่แว่นเหมือน Threeraphat จึงหลุดเป็นสมาชิก ${f1(100 * op.M4.full.stranger_as_member_at_tau)}% (หน้าเต็ม) และ ${f1(100 * op.M4.mask.stranger_as_member_at_tau)}% เมื่อใส่หน้ากาก` }],
+      { x: MX + 0.25, y: 4.43, w: 5.5, h: 2.25, fontSize: 12, paraSpaceAfter: 4 });
+    card(s, 6.85, 4.33, 5.88, 2.42);
+    const vt = (m, f) => vs[m].filter(f).length;
+    const memOk = (m) => `${vt(m, (r) => r.truth !== "Worasak" && r.ok)}/${vt(m, (r) => r.truth !== "Worasak")}`;
+    const strOk = (m) => `${vt(m, (r) => r.truth === "Worasak" && r.ok)}/${vt(m, (r) => r.truth === "Worasak")}`;
+    const wrongName = (m) => vt(m, (r) => !r.ok && r.shown !== "Unknown");
+    text(s, [{ text: "เลือกโมเดลตามว่ายอมพลาดแบบไหนได้", options: { bold: true, color: HEX.blue, breakLine: true } },
+      { text: `M4 FaceNet: แยกสมาชิกได้ดีกว่า (argmax หน้าเต็ม ${f1(100 * ma.M4.full)}% vs ${f1(100 * ma.M2.full)}%) · วิดีโอ: ตอบชื่อถูก ${memOk("M4")} track, คนแปลกหน้า → Unknown ${strOk("M4")}, เรียกผิดชื่อ ${wrongName("M4")} track · เหมาะเมื่อการเรียกผิดคนเสียหายกว่าการตอบ Unknown`, options: { bullet: true, breakLine: true } },
+      { text: `M2 VGG-Face: τ ต่ำกว่า (${f1(op.M2.tau, 2)}) จึงตอบชื่อสมาชิกได้มากกว่า: ${memOk("M2")} track · แต่คนแปลกหน้า → Unknown ${strOk("M2")} และเรียกผิดชื่อ ${wrongName("M2")} track`, options: { bullet: true, breakLine: true } },
+      { text: `FaceNet มั่นใจเกินกับคนแปลกหน้า LFW τ จึงต้องสูงถึง ${f1(op.M4.tau, 2)} · ทางแก้ต่อไป: คนแปลกหน้าหลายคนที่หน้าคล้ายกลุ่ม และใช้ระยะ cosine แทน softmax`, options: { bullet: true } }],
+      { x: 7.05, y: 4.43, w: 5.5, h: 2.25, fontSize: 10.5, paraSpaceAfter: 3 });
+  }
+
+  { // 33 video results
+    const s = content("08 · สมาชิกกลุ่ม — วิดีโอจริง", "วิดีโอจริงของกลุ่ม:", " กรอบ + ลูกศร + ชื่อ");
+    mark("members"); mark("real");
+    const cap = (key) => {
+      const f = CUST.frames[key];
+      if (!f) return key;
+      const who = f.people.map((p) => p.truth === "Worasak" ? (p.shown === "Unknown" ? "Worasak → Unknown ✓" : `Worasak → ${p.shown} ✗`)
+        : p.shown === p.truth ? `${p.truth} ✓` : `${p.truth} → ${p.shown}${p.shown === "Unknown" ? "" : " ✗"}`);
+      return `${f.model} · ${f.clip}: ${who.join(" · ")}`;
+    };
+    const fr = ["M4_group_1_stranger", "M2_group_1_stranger", "M4_group_2_both", "M4_group_1_krit"]
+      .filter((k) => has(path.join(CUST.demo, k + ".png"))).map((k) => [k + ".png", cap(k)]);
+    fr.forEach(([f, cap], i) => {
+      const x = MX + (i % 2) * 3.95, y = 1.55 + Math.floor(i / 2) * 2.62;
+      img(s, path.join(CUST.demo, f), x, y, 3.8, 2.14, "left");
+      text(s, cap, { x, y: y + 2.15, w: 3.8, h: 0.42, fontSize: 9.5, color: HEX.muted });
+    });
+    const per = {};
+    for (const m of ["M2", "M4"]) for (const r of vs[m]) {
+      const k = r.truth; per[k] = per[k] || { M2: [0, 0], M4: [0, 0] };
+      per[k][m][0] += r.ok ? 1 : 0; per[k][m][1] += 1;
+    }
+    const H = (t) => ({ text: t, options: { bold: true, color: HEX.muted, fill: { color: HEX.bg }, align: "center" } });
+    const tbl = [[H("คนจริง (จำนวน track)"), H("M2"), H("M4")]];
+    ["Rapepong", "Threeraphat", "Krit", "Worasak"].forEach((k) => {
+      const c = (m) => ({ text: `${per[k][m][0]}/${per[k][m][1]}`, options: { align: "center", bold: true, color: per[k][m][0] === per[k][m][1] ? HEX.green : HEX.red } });
+      tbl.push([k === "Worasak" ? { text: "Worasak → Unknown", options: { color: HEX.red, bold: true } } : { text: k, options: { bold: true } }, c("M2"), c("M4")]);
+    });
+    s.addTable(tbl, { x: 8.65, y: 1.6, w: 4.08, colW: [2.08, 1.0, 1.0], rowH: 0.42, fontSize: 12, color: HEX.ink,
+      border: { type: "solid", pt: 0.5, color: HEX.line }, fill: { color: HEX.card }, margin: [2, 6, 2, 6] });
+    card(s, 8.65, 3.85, 4.08, 2.9);
+    text(s, [{ text: "อ่านผลอย่างไร", options: { bold: true, breakLine: true } },
+      { text: "5 คลิปทดสอบ นับเป็น track (หน้าเดียวกันต่อเนื่อง ≥ 10 เฟรม) ชื่อของ track = ค่าที่แสดงบ่อยที่สุด", options: { bullet: true, breakLine: true } },
+      { text: Object.keys(CUST.sessCount.Krit || {}).length > 2 ? "Krit ใส่แว่นในคลิปทดสอบ: ลงทะเบียนเพิ่มแบบใส่แว่นแล้ว (s3, s4)"
+        : "Krit ใส่แว่นทุกคลิปทดสอบ แต่คลิปลงทะเบียนไม่ใส่ → ต้องลงทะเบียนเพิ่มแบบใส่แว่น", options: { bullet: true, breakLine: true } },
+      ...(CUST.raw ? [{ text: `ทายถูกก่อนตัดด้วย τ (M4): ` + Object.entries(CUST.raw.M4).sort().map(([w, x]) => `${w} ${f1(100 * x.top1_right, 0)}% (p ${f1(x.mean_p_when_right, 2)})`).join(" · ")
+        + ` → ชื่อที่หายไปเป็น Unknown เพราะ p < τ ${f1(CUST.op.M4.tau, 2)} ไม่ใช่จำผิดคน`, options: { bullet: true, breakLine: true } }] : []),
+      { text: (() => {
+        const wrong = (m) => vs[m].filter((r) => !r.ok && r.shown !== "Unknown").length;
+        return `track ที่ถูกเรียกผิดชื่อ: M4 ${wrong("M4")} · M2 ${wrong("M2")} (ที่เหลือที่พลาดเป็น Unknown ซึ่งปลอดภัยกว่า)`;
+      })(), options: { bullet: true, breakLine: true } },
+      { text: "คลิปเก่า 3 คลิประบุตัวคนด้วยเสื้อผ้า แล้วยืนยันด้วยความคล้ายของ FaceNet", options: { bullet: true, color: HEX.muted } }],
+      { x: 8.85, y: 3.95, w: 3.75, h: 2.75, fontSize: 10, paraSpaceAfter: 2 });
+  }
+
+  if (has(CUST.videoFile)) { // 34 demo clip
+    const s = content("08 · สมาชิกกลุ่ม — คลิปเดโม", "คลิปเดโม:", " group_1 (M4 FaceNet)");
+    mark("members");
+    const cover = "image/png;base64," + fs.readFileSync(path.join(CUST.demo, "M4_group_1_stranger.png")).toString("base64");
+    s.addMedia({ type: "video", path: CUST.videoFile, x: MX, y: 1.55, w: 9.1, h: 5.12, cover });
+    card(s, 9.95, 1.55, 2.78, 5.12);
+    text(s, [{ text: "ในคลิปนี้", options: { bold: true, breakLine: true } },
+      { text: "Rapepong เอามือปิดปาก", options: { bullet: true, breakLine: true } },
+      { text: "Krit ใส่หน้ากาก + แว่น", options: { bullet: true, breakLine: true } },
+      { text: "Worasak (คนแปลกหน้า) เดินเข้ามาช่วงวินาทีที่ 8–12", options: { bullet: true, breakLine: true } },
+      { text: " ", options: { breakLine: true, fontSize: 5 } },
+      { text: "สีกรอบประจำคน · สีเทา = Unknown · ชื่อ = โหวต 15 เฟรมล่าสุด · ตอนนำเสนอคลิกที่ภาพเพื่อเล่น", options: { color: HEX.muted } }],
+      { x: 10.15, y: 1.75, w: 2.45, h: 4.8, fontSize: 12, paraSpaceAfter: 4 });
+  }
 }
 
 // =====================================================================
@@ -753,13 +882,15 @@ section("Wrap-up");
   const pts = [["ผลหลัก", `เทรนเพิ่มด้วยภาพบางส่วน (M2) ได้ ${f1(acc("M2", "full"))}% กับหน้าเต็ม และ ${f1(acc("M2", "mask"))} / ${f1(acc("M2", "sunglasses"))}% กับหน้ากาก / แว่น ผ่าน T1–T3 ทุกข้อ`],
     ["สิ่งที่ช่วยมากที่สุด", `ไม่ใช่ backbone ใหม่ แต่การให้ Softmax เห็นภาพบดบังตอนเทรน: ครึ่งล่าง ${f1(acc("M1", "lower_half"))} → ${f1(acc("M2", "lower_half"))}%`],
     ["Confusion matrix", "M1 สับสนกระจายทั่วเมื่อไม่เห็นดวงตา M2 / M4 เส้นทแยงยังชัดทุกรูปแบบ"],
-    ["ข้อจำกัด", "MTCNN อาจหาหน้าไม่เจอเมื่อบังมากหรือหันข้าง (FEI) · Softmax ต้องเลือกคนที่รู้จักเสมอ จึงต้องตั้ง τ สำหรับคนแปลกหน้า · การบดบังในการทดลองเป็นกล่องบนภาพ Align"],
-    ["ต่อยอด", "เก็บคลิปสมาชิกจริง 2 session · ทดสอบหน้ากากจริง · ใช้ detector ที่ทนการบังมากขึ้น"]];
+    ...(CUST ? [["สมาชิกจริง", `FaceNet (M4) จำสมาชิก 3 คนใน session ที่ไม่เคยเห็น: เต็ม ${f1(100 * CUST.acc.M4.full)}% · หน้ากาก ${f1(100 * CUST.acc.M4.mask)}% · แว่น ${f1(100 * CUST.acc.M4.sunglasses)}% · วิดีโอ: ตอบชื่อถูก ${CUST.video.M4.filter((r) => r.truth !== "Worasak" && r.ok).length}/${CUST.video.M4.filter((r) => r.truth !== "Worasak").length} track, คนแปลกหน้าเป็น Unknown ${CUST.video.M4.filter((r) => r.truth === "Worasak" && r.ok).length}/${CUST.video.M4.filter((r) => r.truth === "Worasak").length}`]] : []),
+    ["ข้อจำกัด", "MTCNN หาหน้าไม่เจอเมื่อบังทั้งตาและปาก หรือหันข้าง · Softmax ต้องเลือกคนที่รู้จักเสมอ คนแปลกหน้าที่หน้าคล้ายสมาชิกจึงหลุดเป็นสมาชิกได้ · การบดบังในการทดลองเป็นกล่องบนภาพ Align"],
+    ["ต่อยอด", "ลงทะเบียนให้ครอบคลุมสิ่งที่ใส่จริง (แว่น หมวก) และหลายวัน · เพิ่มคนแปลกหน้าหลายคน · ใช้ระยะ cosine กับภาพลงทะเบียนแทน softmax · detector ที่ทนการบังมากขึ้น"]];
+  const step = pts.length > 5 ? 0.86 : 1.02, hh = step - 0.12;
   pts.forEach((p, i) => {
-    const y = 1.7 + i * 1.02;
-    card(s, MX, y, W - 2 * MX, 0.9);
-    text(s, p[0], { x: MX + 0.3, y, w: 2.6, h: 0.9, fontSize: 15, bold: true, color: i === 3 ? HEX.orange : HEX.blue, valign: "middle" });
-    text(s, p[1], { x: MX + 3.0, y, w: 8.9, h: 0.9, fontSize: 13, valign: "middle" });
+    const y = 1.6 + i * step;
+    card(s, MX, y, W - 2 * MX, hh);
+    text(s, p[0], { x: MX + 0.3, y, w: 2.6, h: hh, fontSize: 15, bold: true, color: p[0] === "ข้อจำกัด" ? HEX.orange : HEX.blue, valign: "middle" });
+    text(s, p[1], { x: MX + 3.0, y, w: 8.9, h: hh, fontSize: 12.5, valign: "middle" });
   });
 }
 

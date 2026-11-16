@@ -205,19 +205,35 @@ def run_open_set(out, clfs, feats, y, idx_te):
     if not stranger:
         print("no unknown_features_*.npz: skipping the stranger test (see step 1 and 2)")
         return {}
-    rows = {(m, v): open_set(clf, feats[backbone(m)][v][idx_te], y[idx_te], stranger[backbone(m)][v])
+    # tau is chosen on the LFW strangers only. Photos from data/unknown/ (people the group recorded with
+    # capture_faces.py --stranger) are kept out of that choice and reported separately, as a real test.
+    who = np.array([str(n) for n in np.load(out / "unknown.npz")["names"]])
+    pool = np.char.startswith(who, "LFW/")
+    if not pool.any():                       # no LFW strangers at all: fall back to everything
+        pool = np.ones(len(who), bool)
+    own = ~pool
+    rows = {(m, v): open_set(clf, feats[backbone(m)][v][idx_te], y[idx_te], stranger[backbone(m)][v][pool])
             for m, clf in clfs.items() if backbone(m) in stranger for v in VARIANTS}
-    n = len(next(iter(stranger.values()))["full"])
+    own_rows = ({(m, v): open_set(clf, feats[backbone(m)][v][idx_te], y[idx_te], stranger[backbone(m)][v][own])
+                 for m, clf in clfs.items() if backbone(m) in stranger for v in VARIANTS} if own.any() else {})
     (out / "open_set.json").write_text(json.dumps(
-        {"n_strangers": n, "n_known_test": int(len(idx_te)), "tau_default": TAU,
-         "rows": [{"method": m, "variant": v, **r} for (m, v), rs in rows.items() for r in rs]}, indent=1))
-    print(f"\nstrangers: {n} photos of people never seen in training. 'Accepted' = given a name, not Unknown")
+        {"n_strangers": int(pool.sum()), "n_own_strangers": int(own.sum()), "n_known_test": int(len(idx_te)),
+         "tau_default": TAU,
+         "rows": [{"method": m, "variant": v, **r} for (m, v), rs in rows.items() for r in rs],
+         "rows_own_strangers": [{"method": m, "variant": v, **r} for (m, v), rs in own_rows.items() for r in rs]},
+        indent=1))
+    print(f"\nstrangers: {pool.sum()} LFW photos of people never seen in training choose tau"
+          + (f"; {own.sum()} photos from data/unknown/ are tested at that tau" if own.any() else "")
+          + ". 'Accepted' = given a name, not Unknown")
     at = int(np.argmin(np.abs(TAUS - TAU)))
     for (m, v), rs in rows.items():
         if v in ("full", "mask"):
             best = tau_for(rs)
             pick = (f"tau {best['tau']:.2f}: strangers {100 * best['stranger_accepted']:5.1f}%, known right "
                     f"{100 * best['known_correct']:5.1f}%" if best else "no tau keeps strangers <= 5%")
+            if best and own_rows:
+                o = next(r for r in own_rows[(m, v)] if r["tau"] == best["tau"])
+                pick += f", own strangers {100 * o['stranger_accepted']:5.1f}%"
             print(f"{m:7} {v:5}  tau {TAU}: strangers accepted {100 * rs[at]['stranger_accepted']:5.1f}%, "
                   f"known right {100 * rs[at]['known_correct']:5.1f}%  |  {pick}")
     return rows

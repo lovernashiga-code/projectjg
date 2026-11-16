@@ -25,3 +25,11 @@ Thumbs.db
 # Outputs of predict.py / webcam.py
 results/predict/
 results/webcam/
+
+# Group-member videos, enrolment frames and results show identifiable people; VDO/ also has files > 100 MB
+VDO/
+data/custom/
+data/unknown/
+results/video/members_*/
+results/lfw+custom/
+slides/*_full.pptx
